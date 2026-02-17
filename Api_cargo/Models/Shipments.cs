@@ -28,17 +28,19 @@ namespace Api_cargo.Models
         public string sender_name { get; set; }
         public string sender_contact { get; set; }
         public string status { get; set; }
-        public Nullable<int> pickup_checkpoint { get; set; }
-        public Nullable<int> delivery_checkpoint { get; set; }
         public int customer_id { get; set; }
         public Nullable<bool> strict { get; set; }
         public Nullable<int> package_count { get; set; }
         public Nullable<double> total_weight { get; set; }
+        public Nullable<double> pickup_lat { get; set; }
+        public Nullable<double> pickup_long { get; set; }
+        public string pickup_address { get; set; }
+        public Nullable<double> delivery_lat { get; set; }
+        public Nullable<double> delivery_long { get; set; }
+        public string delivery_address { get; set; }
     
         public virtual ICollection<Bookings> Bookings { get; set; }
         public virtual ICollection<ChatThreads> ChatThreads { get; set; }
-        public virtual Checkpoints Checkpoints { get; set; }
-        public virtual Checkpoints Checkpoints1 { get; set; }
         public virtual Customer Customer { get; set; }
         public virtual ICollection<Packages> Packages { get; set; }
         public virtual ICollection<RecipientDetails> RecipientDetails { get; set; }

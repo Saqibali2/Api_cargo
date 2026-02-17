@@ -10,7 +10,7 @@ namespace Api_cargo.Controllers
 {
     public class NotificationsController : ApiController
     {
-        private readonly CargoConnectEntities2 db = new CargoConnectEntities2();
+        private readonly CargoConnectEntities3 db = new CargoConnectEntities3();
 
         [HttpGet]
         [Route("api/notifications/status")]
@@ -62,4 +62,5 @@ namespace Api_cargo.Controllers
             return Ok("SUCCESS: Notification removed.");
         }
     }
+
 }

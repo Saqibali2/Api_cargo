@@ -10,7 +10,7 @@ namespace Api_cargo.Controllers
 {
     public class ReviewsController : ApiController
     {
-        CargoConnectEntities2 db = new CargoConnectEntities2();
+        CargoConnectEntities3 db = new CargoConnectEntities3();
 
         [HttpGet]
         [Route("api/reviews/status")]
@@ -68,5 +68,7 @@ namespace Api_cargo.Controllers
 
             return Ok(reviews);
         }
+
     }
+
 }

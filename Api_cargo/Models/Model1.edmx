@@ -5,17 +5,6 @@
     <!-- SSDL content -->
     <edmx:StorageModels>
       <Schema Namespace="CargoConnectModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
-        <EntityType Name="ActiveRoute">
-          <Key>
-            <PropertyRef Name="active_route_id" />
-          </Key>
-          <Property Name="active_route_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="driver_id" Type="int" Nullable="false" />
-          <Property Name="route_id" Type="int" Nullable="false" />
-          <Property Name="departure_date" Type="datetime" />
-          <Property Name="arrival_date" Type="datetime" />
-          <Property Name="base_fare" Type="decimal" Precision="10" Scale="2" />
-        </EntityType>
         <EntityType Name="Admin">
           <Key>
             <PropertyRef Name="admin_id" />
@@ -87,10 +76,12 @@
           </Key>
           <Property Name="checkpoint_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="name" Type="nvarchar" MaxLength="100" />
-          <Property Name="location" Type="nvarchar" MaxLength="255" />
           <Property Name="latitude" Type="float" />
           <Property Name="longitude" Type="float" />
-          <Property Name="is_active" Type="bit" />
+          <Property Name="driver_id" Type="int" />
+          <Property Name="route_id" Type="int" />
+          <Property Name="sequence_no" Type="int" />
+          <Property Name="reached" Type="bit" Nullable="false" />
         </EntityType>
         <EntityType Name="Customer">
           <Key>
@@ -134,17 +125,6 @@
           <Property Name="front_link" Type="nvarchar" MaxLength="255" />
           <Property Name="back_link" Type="nvarchar" MaxLength="255" />
           <Property Name="photo_link" Type="nvarchar" MaxLength="255" />
-        </EntityType>
-        <EntityType Name="NextRoute">
-          <Key>
-            <PropertyRef Name="next_route_id" />
-          </Key>
-          <Property Name="next_route_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="driver_id" Type="int" Nullable="false" />
-          <Property Name="route_id" Type="int" Nullable="false" />
-          <Property Name="departure_date" Type="datetime" />
-          <Property Name="arrival_date" Type="datetime" />
-          <Property Name="base_fare" Type="decimal" Precision="10" Scale="2" />
         </EntityType>
         <EntityType Name="Notifications">
           <Key>
@@ -229,25 +209,23 @@
           <Property Name="role_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="role_name" Type="nvarchar" MaxLength="50" Nullable="false" />
         </EntityType>
-        <EntityType Name="RouteCheckpoints">
-          <Key>
-            <PropertyRef Name="route_detail_id" />
-          </Key>
-          <Property Name="route_detail_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="route_id" Type="int" Nullable="false" />
-          <Property Name="checkpoint_id" Type="int" Nullable="false" />
-          <Property Name="sequence_no" Type="int" />
-          <Property Name="reached" Type="bit" />
-        </EntityType>
         <EntityType Name="Routes">
           <Key>
             <PropertyRef Name="route_id" />
           </Key>
           <Property Name="route_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="driver_id" Type="int" Nullable="false" />
-          <Property Name="from_checkpoint" Type="int" Nullable="false" />
-          <Property Name="to_checkpoint" Type="int" Nullable="false" />
-          <Property Name="distance_km" Type="float" />
+          <Property Name="is_active" Type="bit" />
+          <Property Name="is_next_route" Type="bit" />
+        </EntityType>
+        <EntityType Name="RouteSchedule">
+          <Key>
+            <PropertyRef Name="routeScheduleId" />
+          </Key>
+          <Property Name="routeScheduleId" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="route_id" Type="int" Nullable="false" />
+          <Property Name="departureDate" Type="nvarchar" MaxLength="50" Nullable="false" />
+          <Property Name="arrivalDate" Type="nvarchar" MaxLength="50" Nullable="false" />
         </EntityType>
         <EntityType Name="Shipments">
           <Key>
@@ -257,12 +235,16 @@
           <Property Name="sender_name" Type="nvarchar" MaxLength="100" />
           <Property Name="sender_contact" Type="nvarchar" MaxLength="20" />
           <Property Name="status" Type="nvarchar" MaxLength="50" />
-          <Property Name="pickup_checkpoint" Type="int" />
-          <Property Name="delivery_checkpoint" Type="int" />
           <Property Name="customer_id" Type="int" Nullable="false" />
           <Property Name="strict" Type="bit" />
           <Property Name="package_count" Type="int" />
           <Property Name="total_weight" Type="float" />
+          <Property Name="pickup_lat" Type="float" />
+          <Property Name="pickup_long" Type="float" />
+          <Property Name="pickup_address" Type="nvarchar" MaxLength="500" />
+          <Property Name="delivery_lat" Type="float" />
+          <Property Name="delivery_long" Type="float" />
+          <Property Name="delivery_address" Type="nvarchar" MaxLength="500" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -358,30 +340,6 @@
           <Property Name="front_link" Type="nvarchar" MaxLength="255" />
           <Property Name="back_link" Type="nvarchar" MaxLength="255" />
         </EntityType>
-        <Association Name="FK__ActiveRou__drive__68487DD7">
-          <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
-          <End Role="ActiveRoute" Type="Self.ActiveRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Driver">
-              <PropertyRef Name="driver_id" />
-            </Principal>
-            <Dependent Role="ActiveRoute">
-              <PropertyRef Name="driver_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ActiveRou__route__693CA210">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="ActiveRoute" Type="Self.ActiveRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="ActiveRoute">
-              <PropertyRef Name="route_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Admin__user_id__4222D4EF">
           <End Role="Users" Type="Self.Users" Multiplicity="1" />
           <End Role="Admin" Type="Self.Admin" Multiplicity="*" />
@@ -550,30 +508,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__NextRoute__drive__6C190EBB">
-          <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
-          <End Role="NextRoute" Type="Self.NextRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Driver">
-              <PropertyRef Name="driver_id" />
-            </Principal>
-            <Dependent Role="NextRoute">
-              <PropertyRef Name="driver_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__NextRoute__route__6D0D32F4">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="NextRoute" Type="Self.NextRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="NextRoute">
-              <PropertyRef Name="route_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Notificat__user___32AB8735">
           <End Role="Users" Type="Self.Users" Multiplicity="1" />
           <End Role="Notifications" Type="Self.Notifications" Multiplicity="*" />
@@ -694,30 +628,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__RouteChec__check__656C112C">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="RouteCheckpoints" Type="Self.RouteCheckpoints" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="RouteCheckpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__RouteChec__route__6477ECF3">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="RouteCheckpoints" Type="Self.RouteCheckpoints" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="RouteCheckpoints">
-              <PropertyRef Name="route_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Routes__driver_i__5EBF139D">
           <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
           <End Role="Routes" Type="Self.Routes" Multiplicity="*" />
@@ -730,30 +640,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__Routes__from_che__5FB337D6">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="Routes" Type="Self.Routes" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Routes">
-              <PropertyRef Name="from_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Routes__to_check__60A75C0F">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="Routes" Type="Self.Routes" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Routes">
-              <PropertyRef Name="to_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Shipments__custo__72C60C4A">
           <End Role="Customer" Type="Self.Customer" Multiplicity="1" />
           <End Role="Shipments" Type="Self.Shipments" Multiplicity="*" />
@@ -763,30 +649,6 @@
             </Principal>
             <Dependent Role="Shipments">
               <PropertyRef Name="customer_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Shipments__deliv__71D1E811">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="0..1" />
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Shipments">
-              <PropertyRef Name="delivery_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Shipments__picku__70DDC3D8">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="0..1" />
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Shipments">
-              <PropertyRef Name="pickup_checkpoint" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -946,8 +808,43 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_Checkpoints_Driver">
+          <End Role="Driver" Type="Self.Driver" Multiplicity="0..1" />
+          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Driver">
+              <PropertyRef Name="driver_id" />
+            </Principal>
+            <Dependent Role="Checkpoints">
+              <PropertyRef Name="driver_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_Checkpoints_Routes">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="0..1" />
+          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="Checkpoints">
+              <PropertyRef Name="route_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_RouteSchedule_Routes">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
+          <End Role="RouteSchedule" Type="Self.RouteSchedule" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="RouteSchedule">
+              <PropertyRef Name="route_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <EntityContainer Name="CargoConnectModelStoreContainer">
-          <EntitySet Name="ActiveRoute" EntityType="Self.ActiveRoute" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Admin" EntityType="Self.Admin" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Bookings" EntityType="Self.Bookings" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="ChatAttachments" EntityType="Self.ChatAttachments" Schema="dbo" store:Type="Tables" />
@@ -957,7 +854,6 @@
           <EntitySet Name="Customer" EntityType="Self.Customer" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Driver" EntityType="Self.Driver" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="DriverDocuments" EntityType="Self.DriverDocuments" Schema="dbo" store:Type="Tables" />
-          <EntitySet Name="NextRoute" EntityType="Self.NextRoute" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Notifications" EntityType="Self.Notifications" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="PackageAttributeMapping" EntityType="Self.PackageAttributeMapping" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="PackageAttributes" EntityType="Self.PackageAttributes" Schema="dbo" store:Type="Tables" />
@@ -966,8 +862,8 @@
           <EntitySet Name="Requests" EntityType="Self.Requests" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Reviews" EntityType="Self.Reviews" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Roles" EntityType="Self.Roles" Schema="dbo" store:Type="Tables" />
-          <EntitySet Name="RouteCheckpoints" EntityType="Self.RouteCheckpoints" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Routes" EntityType="Self.Routes" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="RouteSchedule" EntityType="Self.RouteSchedule" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Shipments" EntityType="Self.Shipments" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="TripCheckpoints" EntityType="Self.TripCheckpoints" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="TripDelays" EntityType="Self.TripDelays" Schema="dbo" store:Type="Tables" />
@@ -977,14 +873,6 @@
           <EntitySet Name="UserSuspensions" EntityType="Self.UserSuspensions" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Vehicle" EntityType="Self.Vehicle" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="VehicleDocuments" EntityType="Self.VehicleDocuments" Schema="dbo" store:Type="Tables" />
-          <AssociationSet Name="FK__ActiveRou__drive__68487DD7" Association="Self.FK__ActiveRou__drive__68487DD7">
-            <End Role="Driver" EntitySet="Driver" />
-            <End Role="ActiveRoute" EntitySet="ActiveRoute" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ActiveRou__route__693CA210" Association="Self.FK__ActiveRou__route__693CA210">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="ActiveRoute" EntitySet="ActiveRoute" />
-          </AssociationSet>
           <AssociationSet Name="FK__Admin__user_id__4222D4EF" Association="Self.FK__Admin__user_id__4222D4EF">
             <End Role="Users" EntitySet="Users" />
             <End Role="Admin" EntitySet="Admin" />
@@ -1041,14 +929,6 @@
             <End Role="Driver" EntitySet="Driver" />
             <End Role="DriverDocuments" EntitySet="DriverDocuments" />
           </AssociationSet>
-          <AssociationSet Name="FK__NextRoute__drive__6C190EBB" Association="Self.FK__NextRoute__drive__6C190EBB">
-            <End Role="Driver" EntitySet="Driver" />
-            <End Role="NextRoute" EntitySet="NextRoute" />
-          </AssociationSet>
-          <AssociationSet Name="FK__NextRoute__route__6D0D32F4" Association="Self.FK__NextRoute__route__6D0D32F4">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="NextRoute" EntitySet="NextRoute" />
-          </AssociationSet>
           <AssociationSet Name="FK__Notificat__user___32AB8735" Association="Self.FK__Notificat__user___32AB8735">
             <End Role="Users" EntitySet="Users" />
             <End Role="Notifications" EntitySet="Notifications" />
@@ -1089,36 +969,12 @@
             <End Role="Trips" EntitySet="Trips" />
             <End Role="Reviews" EntitySet="Reviews" />
           </AssociationSet>
-          <AssociationSet Name="FK__RouteChec__check__656C112C" Association="Self.FK__RouteChec__check__656C112C">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="RouteCheckpoints" EntitySet="RouteCheckpoints" />
-          </AssociationSet>
-          <AssociationSet Name="FK__RouteChec__route__6477ECF3" Association="Self.FK__RouteChec__route__6477ECF3">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="RouteCheckpoints" EntitySet="RouteCheckpoints" />
-          </AssociationSet>
           <AssociationSet Name="FK__Routes__driver_i__5EBF139D" Association="Self.FK__Routes__driver_i__5EBF139D">
             <End Role="Driver" EntitySet="Driver" />
             <End Role="Routes" EntitySet="Routes" />
           </AssociationSet>
-          <AssociationSet Name="FK__Routes__from_che__5FB337D6" Association="Self.FK__Routes__from_che__5FB337D6">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Routes" EntitySet="Routes" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Routes__to_check__60A75C0F" Association="Self.FK__Routes__to_check__60A75C0F">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Routes" EntitySet="Routes" />
-          </AssociationSet>
           <AssociationSet Name="FK__Shipments__custo__72C60C4A" Association="Self.FK__Shipments__custo__72C60C4A">
             <End Role="Customer" EntitySet="Customer" />
-            <End Role="Shipments" EntitySet="Shipments" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Shipments__deliv__71D1E811" Association="Self.FK__Shipments__deliv__71D1E811">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Shipments" EntitySet="Shipments" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Shipments__picku__70DDC3D8" Association="Self.FK__Shipments__picku__70DDC3D8">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
             <End Role="Shipments" EntitySet="Shipments" />
           </AssociationSet>
           <AssociationSet Name="FK__TripCheck__check__1332DBDC" Association="Self.FK__TripCheck__check__1332DBDC">
@@ -1173,25 +1029,24 @@
             <End Role="Vehicle" EntitySet="Vehicle" />
             <End Role="VehicleDocuments" EntitySet="VehicleDocuments" />
           </AssociationSet>
+          <AssociationSet Name="FK_Checkpoints_Driver" Association="Self.FK_Checkpoints_Driver">
+            <End Role="Driver" EntitySet="Driver" />
+            <End Role="Checkpoints" EntitySet="Checkpoints" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Checkpoints_Routes" Association="Self.FK_Checkpoints_Routes">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="Checkpoints" EntitySet="Checkpoints" />
+          </AssociationSet>
+          <AssociationSet Name="FK_RouteSchedule_Routes" Association="Self.FK_RouteSchedule_Routes">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="RouteSchedule" EntitySet="RouteSchedule" />
+          </AssociationSet>
         </EntityContainer>
       </Schema>
     </edmx:StorageModels>
     <!-- CSDL content -->
     <edmx:ConceptualModels>
       <Schema Namespace="CargoConnectModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
-        <EntityType Name="ActiveRoute">
-          <Key>
-            <PropertyRef Name="active_route_id" />
-          </Key>
-          <Property Name="active_route_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="driver_id" Type="Int32" Nullable="false" />
-          <Property Name="route_id" Type="Int32" Nullable="false" />
-          <Property Name="departure_date" Type="DateTime" Precision="3" />
-          <Property Name="arrival_date" Type="DateTime" Precision="3" />
-          <Property Name="base_fare" Type="Decimal" Precision="10" Scale="2" />
-          <NavigationProperty Name="Driver" Relationship="Self.FK__ActiveRou__drive__68487DD7" FromRole="ActiveRoute" ToRole="Driver" />
-          <NavigationProperty Name="Routes" Relationship="Self.FK__ActiveRou__route__693CA210" FromRole="ActiveRoute" ToRole="Routes" />
-        </EntityType>
         <EntityType Name="Admin">
           <Key>
             <PropertyRef Name="admin_id" />
@@ -1278,16 +1133,15 @@
           </Key>
           <Property Name="checkpoint_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
           <Property Name="name" Type="String" MaxLength="100" FixedLength="false" Unicode="true" />
-          <Property Name="location" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
           <Property Name="latitude" Type="Double" />
           <Property Name="longitude" Type="Double" />
-          <Property Name="is_active" Type="Boolean" />
-          <NavigationProperty Name="RouteCheckpoints" Relationship="Self.FK__RouteChec__check__656C112C" FromRole="Checkpoints" ToRole="RouteCheckpoints" />
-          <NavigationProperty Name="Routes" Relationship="Self.FK__Routes__from_che__5FB337D6" FromRole="Checkpoints" ToRole="Routes" />
-          <NavigationProperty Name="Routes1" Relationship="Self.FK__Routes__to_check__60A75C0F" FromRole="Checkpoints" ToRole="Routes" />
-          <NavigationProperty Name="Shipments" Relationship="Self.FK__Shipments__deliv__71D1E811" FromRole="Checkpoints" ToRole="Shipments" />
-          <NavigationProperty Name="Shipments1" Relationship="Self.FK__Shipments__picku__70DDC3D8" FromRole="Checkpoints" ToRole="Shipments" />
+          <Property Name="driver_id" Type="Int32" />
+          <Property Name="route_id" Type="Int32" />
+          <Property Name="sequence_no" Type="Int32" />
+          <Property Name="reached" Type="Boolean" Nullable="false" />
           <NavigationProperty Name="TripCheckpoints" Relationship="Self.FK__TripCheck__check__1332DBDC" FromRole="Checkpoints" ToRole="TripCheckpoints" />
+          <NavigationProperty Name="Driver" Relationship="Self.FK_Checkpoints_Driver" FromRole="Checkpoints" ToRole="Driver" />
+          <NavigationProperty Name="Routes" Relationship="Self.FK_Checkpoints_Routes" FromRole="Checkpoints" ToRole="Routes" />
         </EntityType>
         <EntityType Name="Customer">
           <Key>
@@ -1321,10 +1175,9 @@
           <Property Name="city" Type="String" MaxLength="100" FixedLength="false" Unicode="true" />
           <Property Name="profile_image_url" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
           <Property Name="is_available" Type="Boolean" />
-          <NavigationProperty Name="ActiveRoute" Relationship="Self.FK__ActiveRou__drive__68487DD7" FromRole="Driver" ToRole="ActiveRoute" />
+          <NavigationProperty Name="Checkpoints" Relationship="Self.FK_Checkpoints_Driver" FromRole="Driver" ToRole="Checkpoints" />
           <NavigationProperty Name="Users" Relationship="Self.FK__Driver__user_id__4AB81AF0" FromRole="Driver" ToRole="Users" />
           <NavigationProperty Name="DriverDocuments" Relationship="Self.FK__DriverDoc__drive__534D60F1" FromRole="Driver" ToRole="DriverDocuments" />
-          <NavigationProperty Name="NextRoute" Relationship="Self.FK__NextRoute__drive__6C190EBB" FromRole="Driver" ToRole="NextRoute" />
           <NavigationProperty Name="Requests" Relationship="Self.FK__Requests__driver__797309D9" FromRole="Driver" ToRole="Requests" />
           <NavigationProperty Name="Routes" Relationship="Self.FK__Routes__driver_i__5EBF139D" FromRole="Driver" ToRole="Routes" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__driver_id__05D8E0BE" FromRole="Driver" ToRole="Trips" />
@@ -1343,19 +1196,6 @@
           <Property Name="back_link" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
           <Property Name="photo_link" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__DriverDoc__drive__534D60F1" FromRole="DriverDocuments" ToRole="Driver" />
-        </EntityType>
-        <EntityType Name="NextRoute">
-          <Key>
-            <PropertyRef Name="next_route_id" />
-          </Key>
-          <Property Name="next_route_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="driver_id" Type="Int32" Nullable="false" />
-          <Property Name="route_id" Type="Int32" Nullable="false" />
-          <Property Name="departure_date" Type="DateTime" Precision="3" />
-          <Property Name="arrival_date" Type="DateTime" Precision="3" />
-          <Property Name="base_fare" Type="Decimal" Precision="10" Scale="2" />
-          <NavigationProperty Name="Driver" Relationship="Self.FK__NextRoute__drive__6C190EBB" FromRole="NextRoute" ToRole="Driver" />
-          <NavigationProperty Name="Routes" Relationship="Self.FK__NextRoute__route__6D0D32F4" FromRole="NextRoute" ToRole="Routes" />
         </EntityType>
         <EntityType Name="Notifications">
           <Key>
@@ -1453,35 +1293,29 @@
           <Property Name="role_name" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
           <NavigationProperty Name="Users" Relationship="Self.FK__Users__role_id__3E52440B" FromRole="Roles" ToRole="Users" />
         </EntityType>
-        <EntityType Name="RouteCheckpoints">
-          <Key>
-            <PropertyRef Name="route_detail_id" />
-          </Key>
-          <Property Name="route_detail_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="route_id" Type="Int32" Nullable="false" />
-          <Property Name="checkpoint_id" Type="Int32" Nullable="false" />
-          <Property Name="sequence_no" Type="Int32" />
-          <Property Name="reached" Type="Boolean" />
-          <NavigationProperty Name="Checkpoints" Relationship="Self.FK__RouteChec__check__656C112C" FromRole="RouteCheckpoints" ToRole="Checkpoints" />
-          <NavigationProperty Name="Routes" Relationship="Self.FK__RouteChec__route__6477ECF3" FromRole="RouteCheckpoints" ToRole="Routes" />
-        </EntityType>
         <EntityType Name="Routes">
           <Key>
             <PropertyRef Name="route_id" />
           </Key>
           <Property Name="route_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
           <Property Name="driver_id" Type="Int32" Nullable="false" />
-          <Property Name="from_checkpoint" Type="Int32" Nullable="false" />
-          <Property Name="to_checkpoint" Type="Int32" Nullable="false" />
-          <Property Name="distance_km" Type="Double" />
-          <NavigationProperty Name="ActiveRoute" Relationship="Self.FK__ActiveRou__route__693CA210" FromRole="Routes" ToRole="ActiveRoute" />
+          <Property Name="is_active" Type="Boolean" />
+          <Property Name="is_next_route" Type="Boolean" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__route___0E6E26BF" FromRole="Routes" ToRole="Bookings" />
-          <NavigationProperty Name="Checkpoints" Relationship="Self.FK__Routes__from_che__5FB337D6" FromRole="Routes" ToRole="Checkpoints" />
-          <NavigationProperty Name="Checkpoints1" Relationship="Self.FK__Routes__to_check__60A75C0F" FromRole="Routes" ToRole="Checkpoints" />
+          <NavigationProperty Name="Checkpoints" Relationship="Self.FK_Checkpoints_Routes" FromRole="Routes" ToRole="Checkpoints" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Routes__driver_i__5EBF139D" FromRole="Routes" ToRole="Driver" />
-          <NavigationProperty Name="NextRoute" Relationship="Self.FK__NextRoute__route__6D0D32F4" FromRole="Routes" ToRole="NextRoute" />
-          <NavigationProperty Name="RouteCheckpoints" Relationship="Self.FK__RouteChec__route__6477ECF3" FromRole="Routes" ToRole="RouteCheckpoints" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__route_id__07C12930" FromRole="Routes" ToRole="Trips" />
+          <NavigationProperty Name="RouteSchedule" Relationship="Self.FK_RouteSchedule_Routes" FromRole="Routes" ToRole="RouteSchedule" />
+        </EntityType>
+        <EntityType Name="RouteSchedule">
+          <Key>
+            <PropertyRef Name="routeScheduleId" />
+          </Key>
+          <Property Name="routeScheduleId" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="route_id" Type="Int32" Nullable="false" />
+          <Property Name="departureDate" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="arrivalDate" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
+          <NavigationProperty Name="Routes" Relationship="Self.FK_RouteSchedule_Routes" FromRole="RouteSchedule" ToRole="Routes" />
         </EntityType>
         <EntityType Name="Shipments">
           <Key>
@@ -1491,16 +1325,18 @@
           <Property Name="sender_name" Type="String" MaxLength="100" FixedLength="false" Unicode="true" />
           <Property Name="sender_contact" Type="String" MaxLength="20" FixedLength="false" Unicode="true" />
           <Property Name="status" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
-          <Property Name="pickup_checkpoint" Type="Int32" />
-          <Property Name="delivery_checkpoint" Type="Int32" />
           <Property Name="customer_id" Type="Int32" Nullable="false" />
           <Property Name="strict" Type="Boolean" />
           <Property Name="package_count" Type="Int32" />
           <Property Name="total_weight" Type="Double" />
+          <Property Name="pickup_lat" Type="Double" />
+          <Property Name="pickup_long" Type="Double" />
+          <Property Name="pickup_address" Type="String" MaxLength="500" FixedLength="false" Unicode="true" />
+          <Property Name="delivery_lat" Type="Double" />
+          <Property Name="delivery_long" Type="Double" />
+          <Property Name="delivery_address" Type="String" MaxLength="500" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__shipme__0C85DE4D" FromRole="Shipments" ToRole="Bookings" />
           <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__shipm__22751F6C" FromRole="Shipments" ToRole="ChatThreads" />
-          <NavigationProperty Name="Checkpoints" Relationship="Self.FK__Shipments__deliv__71D1E811" FromRole="Shipments" ToRole="Checkpoints" />
-          <NavigationProperty Name="Checkpoints1" Relationship="Self.FK__Shipments__picku__70DDC3D8" FromRole="Shipments" ToRole="Checkpoints" />
           <NavigationProperty Name="Customer" Relationship="Self.FK__Shipments__custo__72C60C4A" FromRole="Shipments" ToRole="Customer" />
           <NavigationProperty Name="Packages" Relationship="Self.FK__Packages__shipme__7C4F7684" FromRole="Shipments" ToRole="Packages" />
           <NavigationProperty Name="RecipientDetails" Relationship="Self.FK__Recipient__shipm__75A278F5" FromRole="Shipments" ToRole="RecipientDetails" />
@@ -1630,30 +1466,6 @@
           <Property Name="back_link" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Vehicle" Relationship="Self.FK__VehicleDo__vehic__59063A47" FromRole="VehicleDocuments" ToRole="Vehicle" />
         </EntityType>
-        <Association Name="FK__ActiveRou__drive__68487DD7">
-          <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
-          <End Role="ActiveRoute" Type="Self.ActiveRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Driver">
-              <PropertyRef Name="driver_id" />
-            </Principal>
-            <Dependent Role="ActiveRoute">
-              <PropertyRef Name="driver_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ActiveRou__route__693CA210">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="ActiveRoute" Type="Self.ActiveRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="ActiveRoute">
-              <PropertyRef Name="route_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Admin__user_id__4222D4EF">
           <End Role="Users" Type="Self.Users" Multiplicity="1" />
           <End Role="Admin" Type="Self.Admin" Multiplicity="*" />
@@ -1798,66 +1610,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__RouteChec__check__656C112C">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="RouteCheckpoints" Type="Self.RouteCheckpoints" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="RouteCheckpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Routes__from_che__5FB337D6">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="Routes" Type="Self.Routes" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Routes">
-              <PropertyRef Name="from_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Routes__to_check__60A75C0F">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
-          <End Role="Routes" Type="Self.Routes" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Routes">
-              <PropertyRef Name="to_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Shipments__deliv__71D1E811">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="0..1" />
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Shipments">
-              <PropertyRef Name="delivery_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__Shipments__picku__70DDC3D8">
-          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="0..1" />
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Checkpoints">
-              <PropertyRef Name="checkpoint_id" />
-            </Principal>
-            <Dependent Role="Shipments">
-              <PropertyRef Name="pickup_checkpoint" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__TripCheck__check__1332DBDC">
           <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="1" />
           <End Role="TripCheckpoints" Type="Self.TripCheckpoints" Multiplicity="*" />
@@ -1867,6 +1619,30 @@
             </Principal>
             <Dependent Role="TripCheckpoints">
               <PropertyRef Name="checkpoint_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_Checkpoints_Driver">
+          <End Role="Driver" Type="Self.Driver" Multiplicity="0..1" />
+          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Driver">
+              <PropertyRef Name="driver_id" />
+            </Principal>
+            <Dependent Role="Checkpoints">
+              <PropertyRef Name="driver_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_Checkpoints_Routes">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="0..1" />
+          <End Role="Checkpoints" Type="Self.Checkpoints" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="Checkpoints">
+              <PropertyRef Name="route_id" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -1918,18 +1694,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__NextRoute__drive__6C190EBB">
-          <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
-          <End Role="NextRoute" Type="Self.NextRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Driver">
-              <PropertyRef Name="driver_id" />
-            </Principal>
-            <Dependent Role="NextRoute">
-              <PropertyRef Name="driver_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Requests__driver__797309D9">
           <End Role="Driver" Type="Self.Driver" Multiplicity="1" />
           <End Role="Requests" Type="Self.Requests" Multiplicity="*" />
@@ -1975,18 +1739,6 @@
             </Principal>
             <Dependent Role="Vehicle">
               <PropertyRef Name="driver_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__NextRoute__route__6D0D32F4">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="NextRoute" Type="Self.NextRoute" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="NextRoute">
-              <PropertyRef Name="route_id" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -2110,18 +1862,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__RouteChec__route__6477ECF3">
-          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
-          <End Role="RouteCheckpoints" Type="Self.RouteCheckpoints" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Routes">
-              <PropertyRef Name="route_id" />
-            </Principal>
-            <Dependent Role="RouteCheckpoints">
-              <PropertyRef Name="route_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Trips__route_id__07C12930">
           <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
           <End Role="Trips" Type="Self.Trips" Multiplicity="*" />
@@ -2130,6 +1870,18 @@
               <PropertyRef Name="route_id" />
             </Principal>
             <Dependent Role="Trips">
+              <PropertyRef Name="route_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="FK_RouteSchedule_Routes">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
+          <End Role="RouteSchedule" Type="Self.RouteSchedule" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="RouteSchedule">
               <PropertyRef Name="route_id" />
             </Dependent>
           </ReferentialConstraint>
@@ -2218,8 +1970,7 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <EntityContainer Name="CargoConnectEntities2" annotation:LazyLoadingEnabled="true">
-          <EntitySet Name="ActiveRoute" EntityType="Self.ActiveRoute" />
+        <EntityContainer Name="CargoConnectEntities3" annotation:LazyLoadingEnabled="true">
           <EntitySet Name="Admin" EntityType="Self.Admin" />
           <EntitySet Name="Bookings" EntityType="Self.Bookings" />
           <EntitySet Name="ChatAttachments" EntityType="Self.ChatAttachments" />
@@ -2229,7 +1980,6 @@
           <EntitySet Name="Customer" EntityType="Self.Customer" />
           <EntitySet Name="Driver" EntityType="Self.Driver" />
           <EntitySet Name="DriverDocuments" EntityType="Self.DriverDocuments" />
-          <EntitySet Name="NextRoute" EntityType="Self.NextRoute" />
           <EntitySet Name="Notifications" EntityType="Self.Notifications" />
           <EntitySet Name="PackageAttributeMapping" EntityType="Self.PackageAttributeMapping" />
           <EntitySet Name="PackageAttributes" EntityType="Self.PackageAttributes" />
@@ -2238,8 +1988,8 @@
           <EntitySet Name="Requests" EntityType="Self.Requests" />
           <EntitySet Name="Reviews" EntityType="Self.Reviews" />
           <EntitySet Name="Roles" EntityType="Self.Roles" />
-          <EntitySet Name="RouteCheckpoints" EntityType="Self.RouteCheckpoints" />
           <EntitySet Name="Routes" EntityType="Self.Routes" />
+          <EntitySet Name="RouteSchedule" EntityType="Self.RouteSchedule" />
           <EntitySet Name="Shipments" EntityType="Self.Shipments" />
           <EntitySet Name="TripCheckpoints" EntityType="Self.TripCheckpoints" />
           <EntitySet Name="TripDelays" EntityType="Self.TripDelays" />
@@ -2249,14 +1999,6 @@
           <EntitySet Name="UserSuspensions" EntityType="Self.UserSuspensions" />
           <EntitySet Name="Vehicle" EntityType="Self.Vehicle" />
           <EntitySet Name="VehicleDocuments" EntityType="Self.VehicleDocuments" />
-          <AssociationSet Name="FK__ActiveRou__drive__68487DD7" Association="Self.FK__ActiveRou__drive__68487DD7">
-            <End Role="Driver" EntitySet="Driver" />
-            <End Role="ActiveRoute" EntitySet="ActiveRoute" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ActiveRou__route__693CA210" Association="Self.FK__ActiveRou__route__693CA210">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="ActiveRoute" EntitySet="ActiveRoute" />
-          </AssociationSet>
           <AssociationSet Name="FK__Admin__user_id__4222D4EF" Association="Self.FK__Admin__user_id__4222D4EF">
             <End Role="Users" EntitySet="Users" />
             <End Role="Admin" EntitySet="Admin" />
@@ -2305,29 +2047,17 @@
             <End Role="Shipments" EntitySet="Shipments" />
             <End Role="ChatThreads" EntitySet="ChatThreads" />
           </AssociationSet>
-          <AssociationSet Name="FK__RouteChec__check__656C112C" Association="Self.FK__RouteChec__check__656C112C">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="RouteCheckpoints" EntitySet="RouteCheckpoints" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Routes__from_che__5FB337D6" Association="Self.FK__Routes__from_che__5FB337D6">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Routes" EntitySet="Routes" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Routes__to_check__60A75C0F" Association="Self.FK__Routes__to_check__60A75C0F">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Routes" EntitySet="Routes" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Shipments__deliv__71D1E811" Association="Self.FK__Shipments__deliv__71D1E811">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Shipments" EntitySet="Shipments" />
-          </AssociationSet>
-          <AssociationSet Name="FK__Shipments__picku__70DDC3D8" Association="Self.FK__Shipments__picku__70DDC3D8">
-            <End Role="Checkpoints" EntitySet="Checkpoints" />
-            <End Role="Shipments" EntitySet="Shipments" />
-          </AssociationSet>
           <AssociationSet Name="FK__TripCheck__check__1332DBDC" Association="Self.FK__TripCheck__check__1332DBDC">
             <End Role="Checkpoints" EntitySet="Checkpoints" />
             <End Role="TripCheckpoints" EntitySet="TripCheckpoints" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Checkpoints_Driver" Association="Self.FK_Checkpoints_Driver">
+            <End Role="Driver" EntitySet="Driver" />
+            <End Role="Checkpoints" EntitySet="Checkpoints" />
+          </AssociationSet>
+          <AssociationSet Name="FK_Checkpoints_Routes" Association="Self.FK_Checkpoints_Routes">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="Checkpoints" EntitySet="Checkpoints" />
           </AssociationSet>
           <AssociationSet Name="FK__Customer__user_i__45F365D3" Association="Self.FK__Customer__user_i__45F365D3">
             <End Role="Users" EntitySet="Users" />
@@ -2345,10 +2075,6 @@
             <End Role="Driver" EntitySet="Driver" />
             <End Role="DriverDocuments" EntitySet="DriverDocuments" />
           </AssociationSet>
-          <AssociationSet Name="FK__NextRoute__drive__6C190EBB" Association="Self.FK__NextRoute__drive__6C190EBB">
-            <End Role="Driver" EntitySet="Driver" />
-            <End Role="NextRoute" EntitySet="NextRoute" />
-          </AssociationSet>
           <AssociationSet Name="FK__Requests__driver__797309D9" Association="Self.FK__Requests__driver__797309D9">
             <End Role="Driver" EntitySet="Driver" />
             <End Role="Requests" EntitySet="Requests" />
@@ -2364,10 +2090,6 @@
           <AssociationSet Name="FK__Vehicle__driver___5629CD9C" Association="Self.FK__Vehicle__driver___5629CD9C">
             <End Role="Driver" EntitySet="Driver" />
             <End Role="Vehicle" EntitySet="Vehicle" />
-          </AssociationSet>
-          <AssociationSet Name="FK__NextRoute__route__6D0D32F4" Association="Self.FK__NextRoute__route__6D0D32F4">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="NextRoute" EntitySet="NextRoute" />
           </AssociationSet>
           <AssociationSet Name="FK__Notificat__user___32AB8735" Association="Self.FK__Notificat__user___32AB8735">
             <End Role="Users" EntitySet="Users" />
@@ -2409,13 +2131,13 @@
             <End Role="Roles" EntitySet="Roles" />
             <End Role="Users" EntitySet="Users" />
           </AssociationSet>
-          <AssociationSet Name="FK__RouteChec__route__6477ECF3" Association="Self.FK__RouteChec__route__6477ECF3">
-            <End Role="Routes" EntitySet="Routes" />
-            <End Role="RouteCheckpoints" EntitySet="RouteCheckpoints" />
-          </AssociationSet>
           <AssociationSet Name="FK__Trips__route_id__07C12930" Association="Self.FK__Trips__route_id__07C12930">
             <End Role="Routes" EntitySet="Routes" />
             <End Role="Trips" EntitySet="Trips" />
+          </AssociationSet>
+          <AssociationSet Name="FK_RouteSchedule_Routes" Association="Self.FK_RouteSchedule_Routes">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="RouteSchedule" EntitySet="RouteSchedule" />
           </AssociationSet>
           <AssociationSet Name="FK__Trips__shipment___04E4BC85" Association="Self.FK__Trips__shipment___04E4BC85">
             <End Role="Shipments" EntitySet="Shipments" />
@@ -2451,19 +2173,7 @@
     <!-- C-S mapping content -->
     <edmx:Mappings>
       <Mapping Space="C-S" xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs">
-        <EntityContainerMapping StorageEntityContainer="CargoConnectModelStoreContainer" CdmEntityContainer="CargoConnectEntities2">
-          <EntitySetMapping Name="ActiveRoute">
-            <EntityTypeMapping TypeName="CargoConnectModel.ActiveRoute">
-              <MappingFragment StoreEntitySet="ActiveRoute">
-                <ScalarProperty Name="active_route_id" ColumnName="active_route_id" />
-                <ScalarProperty Name="driver_id" ColumnName="driver_id" />
-                <ScalarProperty Name="route_id" ColumnName="route_id" />
-                <ScalarProperty Name="departure_date" ColumnName="departure_date" />
-                <ScalarProperty Name="arrival_date" ColumnName="arrival_date" />
-                <ScalarProperty Name="base_fare" ColumnName="base_fare" />
-              </MappingFragment>
-            </EntityTypeMapping>
-          </EntitySetMapping>
+        <EntityContainerMapping StorageEntityContainer="CargoConnectModelStoreContainer" CdmEntityContainer="CargoConnectEntities3">
           <EntitySetMapping Name="Admin">
             <EntityTypeMapping TypeName="CargoConnectModel.Admin">
               <MappingFragment StoreEntitySet="Admin">
@@ -2539,10 +2249,12 @@
               <MappingFragment StoreEntitySet="Checkpoints">
                 <ScalarProperty Name="checkpoint_id" ColumnName="checkpoint_id" />
                 <ScalarProperty Name="name" ColumnName="name" />
-                <ScalarProperty Name="location" ColumnName="location" />
                 <ScalarProperty Name="latitude" ColumnName="latitude" />
                 <ScalarProperty Name="longitude" ColumnName="longitude" />
-                <ScalarProperty Name="is_active" ColumnName="is_active" />
+                <ScalarProperty Name="driver_id" ColumnName="driver_id" />
+                <ScalarProperty Name="route_id" ColumnName="route_id" />
+                <ScalarProperty Name="sequence_no" ColumnName="sequence_no" />
+                <ScalarProperty Name="reached" ColumnName="reached" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2589,18 +2301,6 @@
                 <ScalarProperty Name="front_link" ColumnName="front_link" />
                 <ScalarProperty Name="back_link" ColumnName="back_link" />
                 <ScalarProperty Name="photo_link" ColumnName="photo_link" />
-              </MappingFragment>
-            </EntityTypeMapping>
-          </EntitySetMapping>
-          <EntitySetMapping Name="NextRoute">
-            <EntityTypeMapping TypeName="CargoConnectModel.NextRoute">
-              <MappingFragment StoreEntitySet="NextRoute">
-                <ScalarProperty Name="next_route_id" ColumnName="next_route_id" />
-                <ScalarProperty Name="driver_id" ColumnName="driver_id" />
-                <ScalarProperty Name="route_id" ColumnName="route_id" />
-                <ScalarProperty Name="departure_date" ColumnName="departure_date" />
-                <ScalarProperty Name="arrival_date" ColumnName="arrival_date" />
-                <ScalarProperty Name="base_fare" ColumnName="base_fare" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2695,25 +2395,23 @@
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
-          <EntitySetMapping Name="RouteCheckpoints">
-            <EntityTypeMapping TypeName="CargoConnectModel.RouteCheckpoints">
-              <MappingFragment StoreEntitySet="RouteCheckpoints">
-                <ScalarProperty Name="route_detail_id" ColumnName="route_detail_id" />
-                <ScalarProperty Name="route_id" ColumnName="route_id" />
-                <ScalarProperty Name="checkpoint_id" ColumnName="checkpoint_id" />
-                <ScalarProperty Name="sequence_no" ColumnName="sequence_no" />
-                <ScalarProperty Name="reached" ColumnName="reached" />
-              </MappingFragment>
-            </EntityTypeMapping>
-          </EntitySetMapping>
           <EntitySetMapping Name="Routes">
             <EntityTypeMapping TypeName="CargoConnectModel.Routes">
               <MappingFragment StoreEntitySet="Routes">
                 <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
-                <ScalarProperty Name="from_checkpoint" ColumnName="from_checkpoint" />
-                <ScalarProperty Name="to_checkpoint" ColumnName="to_checkpoint" />
-                <ScalarProperty Name="distance_km" ColumnName="distance_km" />
+                <ScalarProperty Name="is_active" ColumnName="is_active" />
+                <ScalarProperty Name="is_next_route" ColumnName="is_next_route" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="RouteSchedule">
+            <EntityTypeMapping TypeName="CargoConnectModel.RouteSchedule">
+              <MappingFragment StoreEntitySet="RouteSchedule">
+                <ScalarProperty Name="routeScheduleId" ColumnName="routeScheduleId" />
+                <ScalarProperty Name="route_id" ColumnName="route_id" />
+                <ScalarProperty Name="departureDate" ColumnName="departureDate" />
+                <ScalarProperty Name="arrivalDate" ColumnName="arrivalDate" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2724,12 +2422,16 @@
                 <ScalarProperty Name="sender_name" ColumnName="sender_name" />
                 <ScalarProperty Name="sender_contact" ColumnName="sender_contact" />
                 <ScalarProperty Name="status" ColumnName="status" />
-                <ScalarProperty Name="pickup_checkpoint" ColumnName="pickup_checkpoint" />
-                <ScalarProperty Name="delivery_checkpoint" ColumnName="delivery_checkpoint" />
                 <ScalarProperty Name="customer_id" ColumnName="customer_id" />
                 <ScalarProperty Name="strict" ColumnName="strict" />
                 <ScalarProperty Name="package_count" ColumnName="package_count" />
                 <ScalarProperty Name="total_weight" ColumnName="total_weight" />
+                <ScalarProperty Name="pickup_lat" ColumnName="pickup_lat" />
+                <ScalarProperty Name="pickup_long" ColumnName="pickup_long" />
+                <ScalarProperty Name="pickup_address" ColumnName="pickup_address" />
+                <ScalarProperty Name="delivery_lat" ColumnName="delivery_lat" />
+                <ScalarProperty Name="delivery_long" ColumnName="delivery_long" />
+                <ScalarProperty Name="delivery_address" ColumnName="delivery_address" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>

@@ -16,26 +16,21 @@ namespace Api_cargo.Models
     {
         public Routes()
         {
-            this.ActiveRoute = new HashSet<ActiveRoute>();
             this.Bookings = new HashSet<Bookings>();
-            this.NextRoute = new HashSet<NextRoute>();
-            this.RouteCheckpoints = new HashSet<RouteCheckpoints>();
+            this.Checkpoints = new HashSet<Checkpoints>();
             this.Trips = new HashSet<Trips>();
+            this.RouteSchedule = new HashSet<RouteSchedule>();
         }
     
         public int route_id { get; set; }
         public int driver_id { get; set; }
-        public int from_checkpoint { get; set; }
-        public int to_checkpoint { get; set; }
-        public Nullable<double> distance_km { get; set; }
+        public Nullable<bool> is_active { get; set; }
+        public Nullable<bool> is_next_route { get; set; }
     
-        public virtual ICollection<ActiveRoute> ActiveRoute { get; set; }
         public virtual ICollection<Bookings> Bookings { get; set; }
-        public virtual Checkpoints Checkpoints { get; set; }
-        public virtual Checkpoints Checkpoints1 { get; set; }
+        public virtual ICollection<Checkpoints> Checkpoints { get; set; }
         public virtual Driver Driver { get; set; }
-        public virtual ICollection<NextRoute> NextRoute { get; set; }
-        public virtual ICollection<RouteCheckpoints> RouteCheckpoints { get; set; }
         public virtual ICollection<Trips> Trips { get; set; }
+        public virtual ICollection<RouteSchedule> RouteSchedule { get; set; }
     }
 }

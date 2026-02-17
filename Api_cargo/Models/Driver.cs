@@ -16,9 +16,8 @@ namespace Api_cargo.Models
     {
         public Driver()
         {
-            this.ActiveRoute = new HashSet<ActiveRoute>();
+            this.Checkpoints = new HashSet<Checkpoints>();
             this.DriverDocuments = new HashSet<DriverDocuments>();
-            this.NextRoute = new HashSet<NextRoute>();
             this.Requests = new HashSet<Requests>();
             this.Routes = new HashSet<Routes>();
             this.Trips = new HashSet<Trips>();
@@ -37,10 +36,9 @@ namespace Api_cargo.Models
         public string profile_image_url { get; set; }
         public Nullable<bool> is_available { get; set; }
     
-        public virtual ICollection<ActiveRoute> ActiveRoute { get; set; }
+        public virtual ICollection<Checkpoints> Checkpoints { get; set; }
         public virtual Users Users { get; set; }
         public virtual ICollection<DriverDocuments> DriverDocuments { get; set; }
-        public virtual ICollection<NextRoute> NextRoute { get; set; }
         public virtual ICollection<Requests> Requests { get; set; }
         public virtual ICollection<Routes> Routes { get; set; }
         public virtual ICollection<Trips> Trips { get; set; }

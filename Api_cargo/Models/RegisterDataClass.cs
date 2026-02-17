@@ -19,10 +19,12 @@ namespace Api_cargo.Models
         public string StreetNo { get; set; }
         public string City { get; set; }
         public string PhotoLink { get; set; }
-
+        public string departure { get; set; }
+        public string arrival { get; set; }
         // Driver DTOs
         public string LicenseNo { get; set; }
         public VehicleDto Vehicle { get; set; } // <- Vehicle Details for Driver
         public DocumentsDto Documents { get; set; } // <- Documents for Driver
+        public List<Checkpoints> routeData { get; set; }
     }
 }

@@ -12,16 +12,13 @@ namespace Api_cargo.Models
     using System;
     using System.Collections.Generic;
     
-    public partial class ActiveRoute
+    public partial class RouteSchedule
     {
-        public int active_route_id { get; set; }
-        public int driver_id { get; set; }
+        public int routeScheduleId { get; set; }
         public int route_id { get; set; }
-        public Nullable<System.DateTime> departure_date { get; set; }
-        public Nullable<System.DateTime> arrival_date { get; set; }
-        public Nullable<decimal> base_fare { get; set; }
+        public string departureDate { get; set; }
+        public string arrivalDate { get; set; }
     
-        public virtual Driver Driver { get; set; }
         public virtual Routes Routes { get; set; }
     }
 }

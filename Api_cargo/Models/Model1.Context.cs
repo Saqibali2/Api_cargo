@@ -13,10 +13,10 @@ namespace Api_cargo.Models
     using System.Data.Entity;
     using System.Data.Entity.Infrastructure;
     
-    public partial class CargoConnectEntities2 : DbContext
+    public partial class CargoConnectEntities3 : DbContext
     {
-        public CargoConnectEntities2()
-            : base("name=CargoConnectEntities2")
+        public CargoConnectEntities3()
+            : base("name=CargoConnectEntities3")
         {
         }
     
@@ -25,7 +25,6 @@ namespace Api_cargo.Models
             throw new UnintentionalCodeFirstException();
         }
     
-        public DbSet<ActiveRoute> ActiveRoute { get; set; }
         public DbSet<Admin> Admin { get; set; }
         public DbSet<Bookings> Bookings { get; set; }
         public DbSet<ChatAttachments> ChatAttachments { get; set; }
@@ -35,7 +34,6 @@ namespace Api_cargo.Models
         public DbSet<Customer> Customer { get; set; }
         public DbSet<Driver> Driver { get; set; }
         public DbSet<DriverDocuments> DriverDocuments { get; set; }
-        public DbSet<NextRoute> NextRoute { get; set; }
         public DbSet<Notifications> Notifications { get; set; }
         public DbSet<PackageAttributeMapping> PackageAttributeMapping { get; set; }
         public DbSet<PackageAttributes> PackageAttributes { get; set; }
@@ -44,8 +42,8 @@ namespace Api_cargo.Models
         public DbSet<Requests> Requests { get; set; }
         public DbSet<Reviews> Reviews { get; set; }
         public DbSet<Roles> Roles { get; set; }
-        public DbSet<RouteCheckpoints> RouteCheckpoints { get; set; }
         public DbSet<Routes> Routes { get; set; }
+        public DbSet<RouteSchedule> RouteSchedule { get; set; }
         public DbSet<Shipments> Shipments { get; set; }
         public DbSet<TripCheckpoints> TripCheckpoints { get; set; }
         public DbSet<TripDelays> TripDelays { get; set; }
