@@ -2,60 +2,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Web.Http;
 
 namespace Api_cargo.Controllers
 {
-   public class ShipmentController : ApiController
-        {
+    public class ShipmentController : ApiController
+    {
         CargoConnectEntities3 db = new CargoConnectEntities3();
 
-            [HttpGet]
-            [Route("api/shipments/status")]
-            public IHttpActionResult GetShipmentStatus()
-            {
-                return Ok("SUCCESS: Shipment Connection successful.");
-            }
-
-            [Route("api/shipments/customer/{customerId}/pending")]
-            [HttpGet]
-            public IHttpActionResult GetPendingShipment(int customerId)
-            {
-                var pendingShipment = db.Shipments
-                    .Where(s => s.customer_id == customerId && s.status == "Pending")
-                    .Where(s => !db.RecipientDetails.Any(r => r.shipment_id == s.shipment_id))
-                    .OrderByDescending(s => s.shipment_id)
-                    .FirstOrDefault();
-
-                if (pendingShipment == null)
-                    return Ok(new { shipmentId = (int?)null });
-
-                return Ok(new { shipmentId = pendingShipment.shipment_id });
-            }
-        [Route("api/shipments/add")]
+        [Route("api/shipments/draft/{customerId}")]
         [HttpPost]
-        public IHttpActionResult AddNewShipment(int customerId)
+        public IHttpActionResult CreateOrGetDraft(int customerId)
         {
-            var customer = db.Customer
-                .FirstOrDefault(c => c.customer_id == customerId);
-
+            var customer = db.Customer.FirstOrDefault(c => c.customer_id == customerId);
             if (customer == null)
-                return BadRequest("ERROR: Customer not found");
+                return BadRequest("Customer not found");
 
-            var existingPending = db.Shipments
-                .FirstOrDefault(s =>
-                    s.customer_id == customerId &&
-                    s.status == "Pending");
+            var draft = db.Shipments
+                .FirstOrDefault(s => s.customer_id == customerId && s.status == "Draft");
 
-            if (existingPending != null)
-            {
-                return Ok(new
-                {
-                    shipmentId = existingPending.shipment_id
-                });
-            }
+            if (draft != null)
+                return Ok(new { shipmentId = draft.shipment_id });
 
             var shipment = new Shipments
             {
@@ -64,216 +31,191 @@ namespace Api_cargo.Controllers
                 sender_contact = customer.contact_no,
                 package_count = 0,
                 total_weight = 0,
-                status = "Pending",
-                pickup_address = null,
-                delivery_address = null
+                status = "Draft"
             };
 
             db.Shipments.Add(shipment);
             db.SaveChanges();
 
-            return Ok(new
-            {
-                shipmentId = shipment.shipment_id
-            });
+            return Ok(new { shipmentId = shipment.shipment_id });
         }
 
 
         [Route("api/shipments/add/package")]
-            [HttpPost]
-            public IHttpActionResult AddNewPackage(PackageWithMapping request)
+        [HttpPost]
+        public IHttpActionResult AddPackage(PackageWithMapping request)
+        {
+            if (request?.Package == null)
+                return BadRequest("Invalid package data");
+
+            var shipment = db.Shipments
+                .FirstOrDefault(s => s.shipment_id == request.Package.shipment_id);
+
+            if (shipment == null)
+                return BadRequest("Shipment not found");
+
+            if (shipment.status != "Draft")
+                return BadRequest("Cannot modify non-draft shipment");
+
+            db.Packages.Add(request.Package);
+            db.SaveChanges();
+
+            if (request.AttributeIds != null)
             {
-                if (request == null || request.Package == null)
+                foreach (var attributeId in request.AttributeIds)
                 {
-                    return BadRequest("ERROR: Invalid Package data.");
-                }
-
-                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == request.Package.shipment_id);
-                if (shipment == null)
-                {
-                    return BadRequest("ERROR: Shipment not found");
-                }
-
-                db.Packages.Add(request.Package);
-                db.SaveChanges();
-
-                if (request.AttributeIds != null && request.AttributeIds.Any())
-                {
-                    foreach (var attributeId in request.AttributeIds)
+                    db.PackageAttributeMapping.Add(new PackageAttributeMapping
                     {
-                        var mapping = new PackageAttributeMapping
-                        {
-                            package_id = request.Package.package_id,
-                            attribute_id = attributeId
-                        };
-                        db.PackageAttributeMapping.Add(mapping);
-                    }
+                        package_id = request.Package.package_id,
+                        attribute_id = attributeId
+                    });
                 }
-                shipment.package_count = db.Packages.Count(p => p.shipment_id == shipment.shipment_id);
-                shipment.total_weight = db.Packages
-                    .Where(p => p.shipment_id == shipment.shipment_id)
-                    .Sum(p => p.weight ?? 0);
-
-                db.SaveChanges();
-
-                return Ok(new
-                {
-                    packageId = request.Package.package_id,
-                    shipmentId = shipment.shipment_id
-                });
             }
 
-            [Route("api/shipments/add/recipient")]
-            [HttpPost]
-            public IHttpActionResult AddRecipient(RecipientDetails recipient)
+            // Update totals
+            shipment.package_count = db.Packages.Count(p => p.shipment_id == shipment.shipment_id);
+            shipment.total_weight = db.Packages
+                .Where(p => p.shipment_id == shipment.shipment_id)
+                .Sum(p => p.weight ?? 0);
+
+            db.SaveChanges();
+
+            return Ok(new
             {
-                if (recipient == null)
-                {
-                    return BadRequest("ERROR: Invalid Recipient Details");
-                }
+                packageId = request.Package.package_id,
+                shipmentId = shipment.shipment_id
+            });
+        }
 
-                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == recipient.shipment_id);
-                if (shipment == null)
-                {
-                    return BadRequest("ERROR: No shipment found");
-                }
+        [Route("api/shipments/delete/package/{id}")]
+        [HttpDelete]
+        public IHttpActionResult DeletePackage(int id)
+        {
+            var package = db.Packages.FirstOrDefault(p => p.package_id == id);
+            if (package == null)
+                return NotFound();
 
-                var existingRecipient = db.RecipientDetails
-                    .FirstOrDefault(r => r.shipment_id == recipient.shipment_id);
+            var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == package.shipment_id);
+            if (shipment.status != "Draft")
+                return BadRequest("Cannot modify non-draft shipment");
 
-                if (existingRecipient != null)
-                {
-                    return BadRequest("ERROR: Recipient already exists for this shipment");
-                }
+            var mappings = db.PackageAttributeMapping.Where(m => m.package_id == id).ToList();
+            foreach (var m in mappings)
+                db.PackageAttributeMapping.Remove(m);
 
-                db.RecipientDetails.Add(recipient);
-                db.SaveChanges();
+            db.Packages.Remove(package);
+            db.SaveChanges();
 
-                return Ok("SUCCESS: Recipient Added");
-            }
+            shipment.package_count = db.Packages.Count(p => p.shipment_id == shipment.shipment_id);
+            shipment.total_weight = db.Packages
+                .Where(p => p.shipment_id == shipment.shipment_id)
+                .Sum(p => p.weight ?? 0);
 
-            [Route("api/shipments/delete/{id}")]
-            [HttpDelete]
-            public IHttpActionResult DeleteShipment(int id)
+            db.SaveChanges();
+
+            return Ok("Package deleted successfully");
+        }
+
+        [Route("api/shipments/complete")]
+        [HttpPost]
+        public IHttpActionResult CompleteShipment(CompleteShipmentDto model)
+        {
+            if (model == null)
+                return BadRequest("Invalid data");
+
+            var shipment = db.Shipments
+                .FirstOrDefault(s => s.shipment_id == model.shipment_id);
+
+            if (shipment == null)
+                return BadRequest("Shipment not found");
+
+            if (shipment.status != "Draft")
+                return BadRequest("Shipment already processed");
+
+
+            var hasPackages = db.Packages
+                .Any(p => p.shipment_id == model.shipment_id);
+
+            if (!hasPackages)
+                return BadRequest("Add at least one package before completing shipment");
+
+            if (string.IsNullOrWhiteSpace(model.recipient_fname) ||
+                string.IsNullOrWhiteSpace(model.recipient_contact))
+                return BadRequest("Recipient details are required");
+
+            var existingRecipient = db.RecipientDetails
+                .FirstOrDefault(r => r.shipment_id == model.shipment_id);
+
+            if (existingRecipient != null)
+                return BadRequest("Recipient already exists");
+
+
+            shipment.pickup_lat = model.pickup_lat;
+            shipment.pickup_long = model.pickup_long;
+            shipment.pickup_address = model.pickup_address;
+
+            shipment.delivery_lat = model.delivery_lat;
+            shipment.delivery_long = model.delivery_long;
+            shipment.delivery_address = model.delivery_address;
+
+            shipment.strict = model.strict;
+            shipment.status = "Pending";
+
+            var recipient = new RecipientDetails
             {
-                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == id);
-                if (shipment == null)
-                    return NotFound();
+                shipment_id = model.shipment_id,
+                recipient_fname = model.recipient_fname,
+                recipient_lname = model.recipient_lname,
+                recipient_contact = model.recipient_contact,
+                instructionsMessage = model.instructionsMessage
+            };
 
-                var recipient = db.RecipientDetails.FirstOrDefault(s => s.shipment_id == id);
-                if (recipient != null)
-                    db.RecipientDetails.Remove(recipient);
+            db.RecipientDetails.Add(recipient);
 
-                db.Shipments.Remove(shipment);
-                db.SaveChanges();
+            db.SaveChanges();
 
-                return Ok("SUCCESS: Shipment deleted successfully.");
-            }
-
-            [Route("api/shipments/edit/{id}")]
-            [HttpPut]
-            public IHttpActionResult EditShipment(int id, Shipments shipment)
+            return Ok(new
             {
-                var Edit = db.Shipments.FirstOrDefault(s => s.shipment_id == id);
-                if (Edit == null)
-                    return NotFound();
+                message = "Shipment completed successfully",
+                shipmentId = shipment.shipment_id,
+                status = shipment.status
+            });
+        }
+        [Route("api/shipments/edit/recipient/{id}")]
+        [HttpPut]
+        public IHttpActionResult EditRecipient(int id, RecipientDetails recipient)
+        {
+            var existing = db.RecipientDetails
+                .FirstOrDefault(r => r.recipient_detail_id == id);
 
-                Edit.sender_name = shipment.sender_name;
-                Edit.sender_contact = shipment.sender_contact;
-                Edit.status = shipment.status;
+            if (existing == null)
+                return NotFound();
 
-                // Update coordinates instead of checkpoints
-                Edit.pickup_lat = shipment.pickup_lat;
-                Edit.pickup_long = shipment.pickup_long;
-                Edit.pickup_address = shipment.pickup_address;
-                Edit.delivery_lat = shipment.delivery_lat;
-                Edit.delivery_long = shipment.delivery_long;
-                Edit.delivery_address = shipment.delivery_address;
+            var shipment = db.Shipments
+                .FirstOrDefault(s => s.shipment_id == existing.shipment_id);
 
-                Edit.customer_id = shipment.customer_id;
-                Edit.strict = shipment.strict;
-                Edit.package_count = shipment.package_count;
-                Edit.total_weight = shipment.total_weight;
+            if (shipment.status != "Draft")
+                return BadRequest("Cannot edit after submission");
 
-                db.SaveChanges();
-                return Ok("Shipment updated successfully.");
-            }
+            existing.recipient_fname = recipient.recipient_fname;
+            existing.recipient_lname = recipient.recipient_lname;
+            existing.recipient_contact = recipient.recipient_contact;
+            existing.instructionsMessage = recipient.instructionsMessage;
 
-            [Route("api/shipments/edit/recipient/{id}")]
-            [HttpPut]
-            public IHttpActionResult EditRecipient(int id, RecipientDetails recipient)
-            {
-                var editrecpt = db.RecipientDetails.FirstOrDefault(r => r.recipient_detail_id == id);
-                if (editrecpt == null)
-                    return NotFound();
+            db.SaveChanges();
 
-                editrecpt.recipient_fname = recipient.recipient_fname;
-                editrecpt.recipient_lname = recipient.recipient_lname;
-                editrecpt.recipient_contact = recipient.recipient_contact;
-                editrecpt.instructionsMessage = recipient.instructionsMessage;
-
-                db.SaveChanges();
-                return Ok("Recipient details updated successfully.");
-            }
-
-            [Route("api/shipments/edit/package/{id}")]
-            [HttpPut]
-            public IHttpActionResult EditPackage(int id, Packages p)
-            {
-                var EditPkg = db.Packages.FirstOrDefault(ed => ed.package_id == id);
-                if (EditPkg == null)
-                    return NotFound();
-
-                EditPkg.name = p.name;
-                EditPkg.weight = p.weight;
-                EditPkg.length = p.length;
-                EditPkg.width = p.width;
-                EditPkg.height = p.height;
-                EditPkg.quantity = p.quantity;
-                EditPkg.color = p.color;
-                EditPkg.tagNo = p.tagNo;
-
-                db.SaveChanges();
-                return Ok("Package updated successfully.");
-            }
-
-            [Route("api/shipments/delete/package/{id}")]
-            [HttpDelete]
-            public IHttpActionResult DeletePackage(int id)
-            {
-                var package = db.Packages.FirstOrDefault(p => p.package_id == id);
-                if (package == null)
-                    return NotFound();
-
-                // Delete associated attribute mappings
-                var mappings = db.PackageAttributeMapping.Where(m => m.package_id == id).ToList();
-                foreach (var mapping in mappings)
-                {
-                    db.PackageAttributeMapping.Remove(mapping);
-                }
-
-                db.Packages.Remove(package);
-                db.SaveChanges();
-
-                return Ok("Package deleted successfully.");
-            }
+            return Ok("Recipient updated successfully");
+        }
 
         [Route("api/shipments/packages/{shipmentId}")]
         [HttpGet]
         public IHttpActionResult GetPackagesByShipment(int shipmentId)
         {
-            var shipmentExists = db.Shipments
-                .Any(s => s.shipment_id == shipmentId);
-
-            if (!shipmentExists)
-                return BadRequest("No shipment found. Please add a package to create a shipment.");
-
             var packages = db.Packages
                 .Where(p => p.shipment_id == shipmentId)
                 .Select(p => new
                 {
                     p.package_id,
-                    p.shipment_id,
                     p.name,
                     p.weight,
                     p.length,
@@ -288,95 +230,30 @@ namespace Api_cargo.Controllers
             return Ok(packages);
         }
 
-
-        [Route("api/shipments/package/{id}")]
-            [HttpGet]
-            public IHttpActionResult GetPackageById(int id)
-            {
-                var package = db.Packages.Where(p => p.package_id == id)
-                    .Select(s => new
-                    {
-                        s.package_id,
-                        s.shipment_id,
-                        s.name,
-                        s.weight,
-                        s.length,
-                        s.width,
-                        s.height,
-                        s.quantity,
-                        s.color,
-                        s.tagNo
-                    });
-
-                if (package == null)
-                    return NotFound();
-
-                return Ok(package);
-            }
-      
-        [Route("api/shipments/customer/{customerId}/details")]
-            [HttpGet]
-            public IHttpActionResult GetShipmentDetailsByCustomer(int customerId)
-            {
-                bool customerExists = db.Customer.Any(c => c.customer_id == customerId);
-                if (!customerExists)
-                    return BadRequest("Customer not found.");
-
-                var shipments = db.Shipments
-                    .Where(s => s.customer_id == customerId)
-                    .AsEnumerable()
-                    .Select(s => new
-                    {
-                        s.shipment_id,
-                        s.sender_name,
-                        s.sender_contact,
-                        s.status,
-                        // Return coordinates instead of checkpoints
-                        s.pickup_lat,
-                        s.pickup_long,
-                        s.pickup_address,
-                        s.delivery_lat,
-                        s.delivery_long,
-                        s.delivery_address,
-                        s.strict,
-                        s.total_weight,
-                        Packages = db.Packages
-                            .Where(p => p.shipment_id == s.shipment_id)
-                            .Select(p => new
-                            {
-                                p.package_id,
-                                p.name,
-                                p.weight,
-                                p.length,
-                                p.width,
-                                p.height,
-                                p.quantity,
-                                p.color,
-                                p.tagNo
-                            })
-                            .ToList(),
-                        PackageCount = db.Packages.Count(p => p.shipment_id == s.shipment_id),
-                        Recipient = db.RecipientDetails
-                            .Where(r => r.shipment_id == s.shipment_id)
-                            .Select(r => new
-                            {
-                                r.recipient_detail_id,
-                                r.recipient_fname,
-                                r.recipient_lname,
-                                r.recipient_contact,
-                                r.instructionsMessage
-                            })
-                            .FirstOrDefault()
-                    })
-                    .ToList();
-
-                return Ok(shipments);
-            }
-        }
-
-        public class PackageWithMapping
+        [Route("api/shipments/customer/{customerId}")]
+        [HttpGet]
+        public IHttpActionResult GetShipmentsByCustomer(int customerId)
         {
-            public Packages Package { get; set; }
-            public List<int> AttributeIds { get; set; }
+            var shipments = db.Shipments
+                .Where(s => s.customer_id == customerId)
+                .Select(s => new
+                {
+                    s.shipment_id,
+                    s.status,
+                    s.pickup_address,
+                    s.delivery_address,
+                    s.total_weight,
+                    s.package_count
+                })
+                .ToList();
+
+            return Ok(shipments);
         }
     }
+
+    public class PackageWithMapping
+    {
+        public Packages Package { get; set; }
+        public List<int> AttributeIds { get; set; }
+    }
+}

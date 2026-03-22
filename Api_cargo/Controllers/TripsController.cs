@@ -174,48 +174,97 @@ namespace Api_cargo.Controllers
                 return Ok(activeTrips);
             }
 
-            [HttpGet]
-            [Route("api/bookings/active")]
-            public IHttpActionResult GetActiveBookings()
-            {
-                var activeBookings = db.Bookings.Where(b => b.status == "Active" || b.status == "Confirmed").ToList();
-                return Ok(activeBookings);
-            }
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/active")]
+        public IHttpActionResult GetActiveBookings(int driverId)
+        {
+            var bookings = (
+                from b in db.Bookings
+                join t in db.Trips on b.trip_id equals t.trip_id
+                where t.driver_id == driverId
+                && (b.status == "Active" || b.status == "Confirmed")
+                select new
+                {
+                    booking_id = b.booking_id,
+                    shipment_id = b.shipment_id,
+                    route_id = b.route_id,
+                    trip_id = b.trip_id,
+                    status = b.status,
+                    amount = b.amount,
+                    pickup_date = b.pickup_date
+                }).ToList();
 
-            [HttpGet]
-            [Route("api/bookings/future")]
-            public IHttpActionResult GetFutureBookings()
-            {
-                var future = db.Bookings.Where(b => b.pickup_date > DateTime.Today).ToList();
-                return Ok(future);
-            }
+            return Ok(bookings);
+        }
 
-            [HttpPut]
-            [Route("api/trips/{id}/stats")]
-            public IHttpActionResult UpdateTripStats(int id, TripStats stats)
-            {
-                var existing = db.TripStats.FirstOrDefault(s => s.trip_id == id);
-                if (existing == null) return NotFound();
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/future")]
+        public IHttpActionResult GetFutureBookings(int driverId)
+        {
+            var bookings = (
+                from b in db.Bookings
+                join t in db.Trips on b.trip_id equals t.trip_id
+                where t.driver_id == driverId
+                && b.pickup_date > DateTime.Today
+                select new
+                {
+                    booking_id = b.booking_id,
+                    shipment_id = b.shipment_id,
+                    route_id = b.route_id,
+                    trip_id = b.trip_id,
+                    status = b.status,
+                    amount = b.amount,
+                    pickup_date = b.pickup_date
+                }).ToList();
 
-                existing.weight = stats.weight;
-                existing.length = stats.length;
-                existing.width = stats.width;
-                existing.height = stats.height;
+            return Ok(bookings);
+        }
 
-                db.SaveChanges();
-                return Ok("SUCCESS: Trip Stats Updated.");
-            }
+        [HttpPut]
+        [Route("api/trips/{id}/stats")]
+        public IHttpActionResult UpdateTripStats(int id, TripStats stats)
+        {
+            if (stats == null)
+                return BadRequest("Stats data required");
 
-            [HttpGet]
-            [Route("api/trips/{id}/stats")]
-            public IHttpActionResult GetTripStats(int id)
-            {
-                var stats = db.TripStats.FirstOrDefault(s => s.trip_id == id);
-                if (stats == null) return NotFound();
-                return Ok(stats);
-            }
+            var existing = db.TripStats.FirstOrDefault(s => s.trip_id == id);
 
-            [HttpPut]
+            if (existing == null)
+                return NotFound();
+
+            existing.weight = stats.weight;
+            existing.length = stats.length;
+            existing.width = stats.width;
+            existing.height = stats.height;
+
+            db.SaveChanges();
+
+            return Ok("Trip stats updated");
+        }
+
+        [HttpGet]
+        [Route("api/trips/{id}/stats")]
+        public IHttpActionResult GetTripStats(int id)
+        {
+            var stats = db.TripStats
+                .Where(s => s.trip_id == id)
+                .Select(s => new
+                {
+                    s.trip_id,
+                    s.weight,
+                    s.length,
+                    s.width,
+                    s.height
+                })
+                .FirstOrDefault();
+
+            if (stats == null)
+                return NotFound();
+
+            return Ok(stats);
+        }
+
+        [HttpPut]
             [Route("api/trips/checkpoints/{checkpointEventId}/reach")]
             public IHttpActionResult ReachCheckpoint(int checkpointEventId)
             {
@@ -227,28 +276,55 @@ namespace Api_cargo.Controllers
                 return Ok("SUCCESS: Checkpoint reached at " + cp.reached_at);
             }
 
-            [HttpGet]
-            [Route("api/bookings/upcoming-pickups")]
-            public IHttpActionResult GetUpcomingPickups()
-            {
-                var upcoming = db.Bookings
-                    .Where(b => b.pickup_date >= DateTime.Today && b.status != "Cancelled")
-                    .OrderBy(b => b.pickup_date)
-                    .ToList();
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/upcoming")]
+        public IHttpActionResult GetUpcomingPickups(int driverId)
+        {
+            var bookings = (
+                from b in db.Bookings
+                join t in db.Trips on b.trip_id equals t.trip_id
+                where t.driver_id == driverId
+                && b.pickup_date >= DateTime.Today
+                && b.status != "Cancelled"
+                orderby b.pickup_date
+                select new
+                {
+                    booking_id = b.booking_id,
+                    shipment_id = b.shipment_id,
+                    route_id = b.route_id,
+                    trip_id = b.trip_id,
+                    status = b.status,
+                    amount = b.amount,
+                    pickup_date = b.pickup_date
+                }).ToList();
 
-                return Ok(upcoming);
-            }
+            return Ok(bookings);
+        }
 
 
-            [HttpGet]
-            [Route("api/trips/driver/{driverId}")]
-            public IHttpActionResult GetDriverTrips(int driverId)
-            {
-                var trips = db.Trips.Where(t => t.driver_id == driverId).OrderByDescending(t => t.start_time).ToList();
-                return Ok(trips);
-            }
+        [HttpGet]
+        [Route("api/trips/driver/{driverId}")]
+        public IHttpActionResult GetDriverTrips(int driverId)
+        {
+            var trips = db.Trips
+                .Where(t => t.driver_id == driverId)
+                .OrderByDescending(t => t.start_time)
+                .Select(t => new
+                {
+                    trip_id = t.trip_id,
+                    route_id = t.route_id,
+                    driver_id = t.driver_id,
+                    status = t.status,
+                    start_time = t.start_time,
+                    end_time = t.end_time
+                })
+                .ToList();
 
-            [HttpPost]
+            return Ok(trips);
+        }
+
+
+        [HttpPost]
             [Route("api/trips/{id}/checkpoint")]
             public IHttpActionResult AddTripCheckpoint(int id, TripCheckpoints checkpoint)
             {
@@ -267,8 +343,23 @@ namespace Api_cargo.Controllers
                 var delays = db.TripDelays.Where(d => d.trip_id == id).ToList();
                 return Ok(delays);
             }
+        [HttpPut]
+        [Route("api/bookings/{id}/complete")]
+        public IHttpActionResult CompleteBooking(int id)
+        {
+            var booking = db.Bookings.Find(id);
 
-            [HttpPost]
+            if (booking == null)
+                return NotFound();
+
+            booking.status = "Completed";
+            booking.updated_at = DateTime.Now;
+
+            db.SaveChanges();
+
+            return Ok("Delivery completed.");
+        }
+        [HttpPost]
             [Route("api/trips/start")]
             public IHttpActionResult StartTrip(Trips trip)
             {
@@ -279,18 +370,59 @@ namespace Api_cargo.Controllers
                 return Ok(trip);
             }
 
-            [HttpGet]
-            [Route("api/trips/{id}/track")]
-            public IHttpActionResult TrackTrip(int id)
-            {
-                var trip = db.Trips.Find(id);
-                if (trip == null) return NotFound();
-                var lastCp = db.TripCheckpoints.Where(tc => tc.trip_id == id).OrderByDescending(tc => tc.sequence_no).FirstOrDefault();
-                var delays = db.TripDelays.Where(td => td.trip_id == id).ToList();
-                return Ok(new { CurrentTrip = trip, LastReached = lastCp, ActiveDelays = delays });
-            }
+        [HttpGet]
+        [Route("api/trips/{id}/track")]
+        public IHttpActionResult TrackTrip(int id)
+        {
+            var trip = db.Trips
+                .Where(t => t.trip_id == id)
+                .Select(t => new
+                {
+                    trip_id = t.trip_id,
+                    route_id = t.route_id,
+                    driver_id = t.driver_id,
+                    status = t.status,
+                    start_time = t.start_time,
+                    end_time = t.end_time
+                })
+                .FirstOrDefault();
 
-            [HttpPost]
+            if (trip == null)
+                return NotFound();
+
+            var lastCp = db.TripCheckpoints
+     .Where(tc => tc.trip_id == id)
+     .OrderByDescending(tc => tc.sequence_no)
+     .Select(tc => new
+     {
+         checkpoint_event_id = tc.checkpoint_event_id,
+         checkpoint_id = tc.checkpoint_id,
+         sequence_no = tc.sequence_no,
+         reached_at = tc.reached_at
+     })
+     .FirstOrDefault();
+
+
+            var delays = db.TripDelays
+                .Where(td => td.trip_id == id)
+                .Select(td => new
+                {
+                    delay_id = td.delay_id,
+                    reason = td.reason,
+                    created_at = td.created_at
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                CurrentTrip = trip,
+                LastReached = lastCp,
+                ActiveDelays = delays
+            });
+        }
+
+
+        [HttpPost]
             [Route("api/trips/{id}/report-delay")]
             public IHttpActionResult PostDelay(int id, TripDelays delay)
             {
@@ -301,15 +433,44 @@ namespace Api_cargo.Controllers
                 return Ok("Delay reported.");
             }
 
-            [HttpGet]
-            [Route("api/trips/{id}/booking")]
-            public IHttpActionResult GetBookingByTrip(int id)
-            {
-                var booking = db.Bookings.FirstOrDefault(b => b.trip_id == id);
-                return booking == null ? (IHttpActionResult)NotFound() : Ok(booking);
-            }
+        [HttpGet]
+        [Route("api/trips/{id}/bookings")]
+        public IHttpActionResult GetBookingsByTrip(int id)
+        {
+            var bookings = db.Bookings
+                .Where(b => b.trip_id == id)
+                .Select(b => new
+                {
+                    booking_id = b.booking_id,
+                    shipment_id = b.shipment_id,
+                    status = b.status,
+                    amount = b.amount,
+                    pickup_date = b.pickup_date
+                })
+                .ToList();
 
-            [HttpGet]
+            return Ok(bookings);
+        }
+        [HttpGet]
+        [Route("api/routes/{routeId}/checkpoints")]
+        public IHttpActionResult GetRouteCheckpoints(int routeId)
+        {
+            var checkpoints = db.Checkpoints
+                .Where(c => c.route_id == routeId)
+                .OrderBy(c => c.sequence_no)
+                .Select(c => new
+                {
+                    c.checkpoint_id,
+                    c.sequence_no,
+                    c.name,
+                    latitude = c.latitude,
+                    longitude = c.longitude
+                })
+                .ToList();
+
+            return Ok(checkpoints);
+        }
+        [HttpGet]
             [Route("api/trips")]
             public IHttpActionResult GetAllTrips()
             {

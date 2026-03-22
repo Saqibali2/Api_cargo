@@ -4,7 +4,7 @@
   <edmx:Runtime>
     <!-- SSDL content -->
     <edmx:StorageModels>
-      <Schema Namespace="CargoConnectModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+    <Schema Namespace="CargoConnectModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
         <EntityType Name="Admin">
           <Key>
             <PropertyRef Name="admin_id" />
@@ -217,6 +217,7 @@
           <Property Name="driver_id" Type="int" Nullable="false" />
           <Property Name="is_active" Type="bit" />
           <Property Name="is_next_route" Type="bit" />
+          <Property Name="base_fare" Type="decimal" Precision="18" Scale="2" />
         </EntityType>
         <EntityType Name="RouteSchedule">
           <Key>
@@ -1042,8 +1043,7 @@
             <End Role="RouteSchedule" EntitySet="RouteSchedule" />
           </AssociationSet>
         </EntityContainer>
-      </Schema>
-    </edmx:StorageModels>
+      </Schema></edmx:StorageModels>
     <!-- CSDL content -->
     <edmx:ConceptualModels>
       <Schema Namespace="CargoConnectModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
@@ -1306,6 +1306,7 @@
           <NavigationProperty Name="Driver" Relationship="Self.FK__Routes__driver_i__5EBF139D" FromRole="Routes" ToRole="Driver" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__route_id__07C12930" FromRole="Routes" ToRole="Trips" />
           <NavigationProperty Name="RouteSchedule" Relationship="Self.FK_RouteSchedule_Routes" FromRole="Routes" ToRole="RouteSchedule" />
+          <Property Name="base_fare" Type="Decimal" Precision="18" Scale="2" />
         </EntityType>
         <EntityType Name="RouteSchedule">
           <Key>
@@ -2398,6 +2399,7 @@
           <EntitySetMapping Name="Routes">
             <EntityTypeMapping TypeName="CargoConnectModel.Routes">
               <MappingFragment StoreEntitySet="Routes">
+                <ScalarProperty Name="base_fare" ColumnName="base_fare" />
                 <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
                 <ScalarProperty Name="is_active" ColumnName="is_active" />

@@ -26,6 +26,7 @@ namespace Api_cargo.Models
         public int driver_id { get; set; }
         public Nullable<bool> is_active { get; set; }
         public Nullable<bool> is_next_route { get; set; }
+        public Nullable<decimal> base_fare { get; set; }
     
         public virtual ICollection<Bookings> Bookings { get; set; }
         public virtual ICollection<Checkpoints> Checkpoints { get; set; }

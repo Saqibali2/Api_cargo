@@ -20,57 +20,71 @@ namespace Api_cargo.Controllers
             return Ok("SUCCESS: Route connection successful.");
         }
         [HttpPost]
-        [Route("api/routes/create")]
-        public IHttpActionResult CreateRoute(CreateRouteRequest request)
+        [Route("api/driver/save-route")]
+        public IHttpActionResult SaveRoute(CreateRouteRequest request)
         {
-            if (request == null || request.Points == null || request.Points.Count < 2)
+            if (request == null || request.DriverId <= 0 || request.Points == null || !request.Points.Any())
                 return BadRequest("Invalid route data.");
 
-            var driver = db.Driver.FirstOrDefault(d => d.driver_id == request.DriverId);
-            if (driver == null)
-                return BadRequest("Driver not found.");
+            if (request.ActivateNow)
+            {
+                var activeRoutes = db.Routes
+                    .Where(r => r.driver_id == request.DriverId && r.is_active == true)
+                    .ToList();
 
-            // 1️⃣ Create Route
+                foreach (var ar in activeRoutes)
+                {
+                    ar.is_active = false;
+                }
+
+                db.SaveChanges();
+            }
+
+   
             var route = new Routes
             {
                 driver_id = request.DriverId,
-                is_active = request.ActivateNow, // 🔥 handled here
-                is_next_route = false,
-
+                is_active = request.ActivateNow,
+                is_next_route = !request.ActivateNow,
+                base_fare = request.BaseFare
             };
 
             db.Routes.Add(route);
             db.SaveChanges();
 
-            // 2️⃣ Schedule
-            db.RouteSchedule.Add(new RouteSchedule
+            var routeSchedule = new RouteSchedule
             {
                 route_id = route.route_id,
-                departureDate = request.DepartureDate,
-                arrivalDate = request.ArrivalDate,
-            });
+                departureDate = request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ss"),
+                arrivalDate = request.ArrivalDate.ToString("yyyy-MM-ddTHH:mm:ss")
+            };
 
-            foreach (var p in request.Points.OrderBy(p => p.SequenceNo))
+            db.RouteSchedule.Add(routeSchedule);
+            db.SaveChanges();
+
+
+            foreach (var cp in request.Points)
             {
-                db.Checkpoints.Add(new Checkpoints
+                var checkpoint = new Checkpoints
                 {
-                    route_id = route.route_id,
+                    name = cp.Name,
+                    latitude = cp.Latitude,
+                    longitude = cp.Longitude,
                     driver_id = request.DriverId,
-                    name = p.Name,
-                    latitude = p.Latitude,
-                    longitude = p.Longitude,
-                    sequence_no = p.SequenceNo,
+                    sequence_no = cp.SequenceNo,
+                    route_id = route.route_id,
                     reached = false
-                });
+                };
+
+                db.Checkpoints.Add(checkpoint);
             }
 
             db.SaveChanges();
 
             return Ok(new
             {
-                message = "Route created successfully",
-                routeId = route.route_id,
-                isActive = route.is_active
+                message = "Route saved successfully",
+                routeId = route.route_id
             });
         }
 

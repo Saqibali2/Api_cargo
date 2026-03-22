@@ -251,7 +251,10 @@ namespace Api_cargo.Controllers
                 return R * c;
             }
 
-            private double ToRadians(double deg) => deg * (Math.PI / 180);
+
+       
+
+        private double ToRadians(double deg) => deg * (Math.PI / 180);
 
             /*
              [HttpPut]

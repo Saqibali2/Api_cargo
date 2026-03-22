@@ -1,12 +1,15 @@
 ﻿using Api_cargo.Models;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Web.Http;
 using System.Threading.Tasks;
-
+using System.Web;
+using System.Web.Http;
+using System.Data.Entity;
+using System.Transactions;
 namespace Api_cargo.Controllers
 {
         public class AuthController : ApiController
@@ -32,9 +35,35 @@ namespace Api_cargo.Controllers
 
                 }).ToList());
             }
-            [HttpPost]
-            [Route("api/auth/register")]
-            public IHttpActionResult Register(RegisterDataClass request)
+        public string SaveImage(string base64Image, string fileName)
+        {
+            if (string.IsNullOrEmpty(base64Image)) return null;
+
+            // Agar image mein "data:image/jpeg;base64," header ho to usey hatayein
+            if (base64Image.Contains(","))
+            {
+                base64Image = base64Image.Split(',')[1];
+            }
+
+            string folderPath = HttpContext.Current.Server.MapPath("~/UploadedImages/");
+            if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
+
+            string fullPath = Path.Combine(folderPath, fileName);
+            byte[] imageBytes = Convert.FromBase64String(base64Image);
+            File.WriteAllBytes(fullPath, imageBytes);
+
+            // Ye URL ab mobile app/web par access ho sakega
+            return "/UploadedImages/" + fileName;
+        }
+
+
+[HttpPost]
+    [Route("api/auth/register")]
+    public IHttpActionResult Register(RegisterDataClass request)
+    {
+        using (var scope = new TransactionScope())
+        {
+            try
             {
                 if (request == null ||
                     string.IsNullOrEmpty(request.Email) ||
@@ -44,6 +73,13 @@ namespace Api_cargo.Controllers
 
                 if (UserExists(request.Email))
                     return BadRequest("ERROR: User already exists.");
+
+                // 🔥 VEHICLE DUPLICATE CHECK
+                if (request.Role == "Driver" && request.Vehicle != null)
+                {
+                    if (db.Vehicle.Any(v => v.vehicle_reg_no == request.Vehicle.RegNo))
+                        return BadRequest("ERROR: Vehicle already registered.");
+                }
 
                 var user = new Users
                 {
@@ -65,6 +101,9 @@ namespace Api_cargo.Controllers
                     if (request.Vehicle == null || request.Documents == null)
                         return BadRequest("ERROR: Vehicle Documents or Info not received.");
 
+                    string profileFileName = $"profile_{user.user_id}_{DateTime.Now.Ticks}.jpg";
+                    string profileUrl = SaveImage(request.PhotoLink, profileFileName);
+
                     var driver = new Driver
                     {
                         user_id = user.user_id,
@@ -75,7 +114,7 @@ namespace Api_cargo.Controllers
                         licence_no = request.LicenseNo,
                         city = request.City,
                         street_no = request.StreetNo,
-                        profile_image_url = request.PhotoLink,
+                        profile_image_url = profileUrl,
                         is_available = true
                     };
 
@@ -95,60 +134,26 @@ namespace Api_cargo.Controllers
                     };
 
                     db.Vehicle.Add(vehicle);
+                    db.SaveChanges();
 
                     var docs = new DriverDocuments
                     {
                         driver_id = driver.driver_id,
                         uploaded_at = DateTime.Now,
-                        cnic_link = request.Documents.CnicLink,
-                        license_link = request.Documents.LicenseLink,
-                        front_link = request.Documents.FrontLink,
-                        back_link = request.Documents.BackLink,
-                        photo_link = request.PhotoLink
+                        cnic_link = SaveImage(request.Documents.CnicLink, "cnic_" + driver.driver_id + ".jpg"),
+                        license_link = SaveImage(request.Documents.LicenseLink, "license_" + driver.driver_id + ".jpg"),
+                        front_link = SaveImage(request.Documents.FrontLink, "front_" + driver.driver_id + ".jpg"),
+                        back_link = SaveImage(request.Documents.BackLink, "back_" + driver.driver_id + ".jpg"),
+                        photo_link = profileUrl
                     };
 
                     db.DriverDocuments.Add(docs);
                     db.SaveChanges();
-
-                    var route = new Routes
-                    {
-                        driver_id = driver.driver_id,
-                        is_active = true,
-                        is_next_route = false,
-                    };
-
-                    db.Routes.Add(route);
-                    db.SaveChanges();
-
-                    var routeSchedule = new RouteSchedule
-                    {
-                        route_id = route.route_id,
-                        departureDate = request.departure,
-                        arrivalDate = request.arrival,
-                    };
-
-                    db.RouteSchedule.Add(routeSchedule);
-                    db.SaveChanges();
-
-                    for (int i = 0; i < request.routeData.Count; i++)
-                    {
-                        var checkpoint = new Checkpoints
-                        {
-                            name = request.routeData[i].name,
-                            latitude = request.routeData[i].latitude,
-                            longitude = request.routeData[i].longitude,
-                            driver_id = driver.driver_id,
-                            sequence_no = request.routeData[i].sequence_no,
-                            route_id = route.route_id,
-                            reached = request.routeData[i].reached
-                        };
-                        db.Checkpoints.Add(checkpoint);
-                    }
-                    db.SaveChanges();
-
                 }
                 else if (request.Role == "Customer")
                 {
+                    string customerFileName = $"cust_{user.user_id}_{DateTime.Now.Ticks}.jpg";
+
                     var customer = new Customer
                     {
                         user_id = user.user_id,
@@ -158,7 +163,7 @@ namespace Api_cargo.Controllers
                         contact_no = request.ContactNo,
                         city = request.City,
                         street_no = request.StreetNo,
-                        profile_image_url = request.PhotoLink
+                        profile_image_url = SaveImage(request.PhotoLink, customerFileName)
                     };
 
                     db.Customer.Add(customer);
@@ -168,19 +173,12 @@ namespace Api_cargo.Controllers
                 {
                     return BadRequest("ERROR: Invalid role.");
                 }
-                int id = -1;
-                if (user.role_id == 1)
-                {
-                    id = db.Driver.FirstOrDefault(r => r.user_id == user.user_id)?.driver_id ?? -1;
-                }
-                else if (user.role_id == 2)
-                {
-                    id = db.Customer.FirstOrDefault(r => r.user_id == user.user_id)?.customer_id ?? -1;
-                }
-                else if (user.role_id == 3)
-                {
-                    id = db.Admin.FirstOrDefault(r => r.user_id == user.user_id)?.admin_id ?? -1;
-                }
+
+                int id = user.role_id;
+
+
+                    scope.Complete(); 
+
                 return Ok(new
                 {
                     message = "SUCCESS: Registration successful",
@@ -189,7 +187,14 @@ namespace Api_cargo.Controllers
                     roleBasedId = id
                 });
             }
-            [HttpPost]
+            catch (Exception ex)
+            {
+                return InternalServerError(ex); 
+            }
+        }
+    }
+
+    [HttpPost]
             [Route("api/auth/login")]
             public IHttpActionResult LoginUser(LoginRequest request)
             {
@@ -212,7 +217,7 @@ namespace Api_cargo.Controllers
 
                 if (existingUser.role_id == 1)
                 {
-                    id = db.Driver.FirstOrDefault(r => r.user_id == existingUser.user_id)?.driver_id ?? -1;
+                    id = db.Admin.FirstOrDefault(r => r.user_id == existingUser.user_id)?.admin_id ?? -1;
                 }
                 else if (existingUser.role_id == 2)
                 {
@@ -220,7 +225,7 @@ namespace Api_cargo.Controllers
                 }
                 else if (existingUser.role_id == 3)
                 {
-                    id = db.Admin.FirstOrDefault(r => r.user_id == existingUser.user_id)?.admin_id ?? -1;
+                    id = db.Driver.FirstOrDefault(r => r.user_id == existingUser.user_id)?.driver_id ?? -1;
                 }
 
                 return Ok(new
@@ -294,86 +299,137 @@ namespace Api_cargo.Controllers
                     return BadRequest("EXCEPTION: " + ex.Message);
                 }
             }
-            [HttpPost]
-            [Route("api/users/getdata")]
-            public IHttpActionResult GetUserData([FromBody] UserIdRequest request)
+        [HttpGet]
+        [Route("api/users/getdata/{userId}")]
+        public IHttpActionResult GetUserData(int userId)
+        {
+            var user = db.Users.Find(userId);
+            if (user == null) return NotFound();
+
+            object userData = null;
+
+            if (user.role_id == 3)
             {
-                if (request == null) return BadRequest("Invalid request");
-
-                var user = db.Users.Find(request.userId);
-                if (user == null) return NotFound();
-
-                object userData = null;
-
-                if (user.role_id == 1)
-                {
-                    userData = db.Driver.Where(d => d.user_id == request.userId)
-                        .Select(d => new {
-                            name = d.first_name + " " + d.last_name,
-                            contact = d.contact_no,
-                            license_no = d.licence_no,
-                            street_no = d.street_no,
-                            city = d.city,
-                            profileImageUrl = d.profile_image_url,
-
-                            allRoutes = db.Routes.Where(r => r.driver_id == d.driver_id).Select(r => new {
-                                r.route_id,
-                                r.is_active,
-                                r.is_next_route,
-                                points = db.Checkpoints.Where(c => c.route_id == r.route_id)
-                                           .OrderBy(c => c.sequence_no)
-                                           .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
-                                           .ToList()
-                            }).ToList(),
-
-                            activeRoute = db.Routes.Where(r => r.driver_id == d.driver_id && r.is_active == true).Select(r => new {
-                                r.route_id,
-                                points = db.Checkpoints.Where(c => c.route_id == r.route_id)
-                                           .OrderBy(c => c.sequence_no)
-                                           .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
-                                           .ToList()
-                            }).FirstOrDefault(),
-
-                            nextRoute = db.Routes.Where(r => r.driver_id == d.driver_id && r.is_next_route == true).Select(r => new {
-                                r.route_id,
-                                points = db.Checkpoints.Where(c => c.route_id == r.route_id)
-                                           .OrderBy(c => c.sequence_no)
-                                           .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
-                                           .ToList()
-                            }).FirstOrDefault()
-
-                        }).FirstOrDefault();
-                }
-                else if (user.role_id == 2)
-                {
-                    userData = db.Customer.Where(c => c.user_id == request.userId)
-                        .Select(c => new {
-                            name = c.first_name + " " + c.last_name,
-                            contact = c.contact_no,
-                            license_no = "N/A",
-                            street_no = c.street_no,
-                            city = c.city,
-                            profileImageUrl = c.profile_image_url
-                        }).FirstOrDefault();
-                }
-                else if (user.role_id == 3) // Admin
-                {
-                    userData = db.Admin.Where(a => a.user_id == request.userId)
-                        .Select(a => new {
-                            name = a.first_name + " " + a.last_name,
-                            contact = a.contact_no,
-                            license_no = "N/A",
-                            street_no = "Office",
-                            city = "Headquarters",
-                            profileImageUrl = "N/A"
-                        }).FirstOrDefault();
-                }
-
-                if (userData == null) return NotFound();
-
-                return Ok(userData);
+                userData = db.Driver.Where(d => d.user_id == userId)
+                    .Select(d => new {
+                        roleBasedId = 3,
+                        name = d.first_name + " " + d.last_name,
+                        contact = d.contact_no,
+                        license_no = d.licence_no,
+                        street_no = d.street_no,
+                        city = d.city,
+                        profileImageUrl = d.profile_image_url
+                    }).FirstOrDefault();
             }
-            [HttpPost]
+            else if (user.role_id == 2)
+            {
+                userData = db.Customer.Where(c => c.user_id == userId)
+                    .Select(c => new {
+                        roleBasedId = 2,
+                        name = c.first_name + " " + c.last_name,
+                        contact = c.contact_no,
+                        street_no = c.street_no,
+                        city = c.city,
+                        profileImageUrl = c.profile_image_url
+                    }).FirstOrDefault();
+            }
+            else if (user.role_id == 1)
+            {
+                userData = new
+                {
+                    roleBasedId = 1,
+                    name = "Admin",
+                    contact = "N/A",
+                    street_no = "Office",
+                    city = "HQ",
+                    
+                };
+            }
+
+            if (userData == null) return NotFound();
+
+            return Ok(userData);
+        }
+        //[HttpPost]
+        //[Route("api/users/getdata")]
+        //public IHttpActionResult GetUserData([FromBody] UserIdRequest request)
+        //{
+        //    if (request == null) return BadRequest("Invalid request");
+
+        //    var user = db.Users.Find(request.userId);
+        //    if (user == null) return NotFound();
+
+        //    object userData = null;
+
+        //    if (user.role_id == 3)
+        //    {
+        //        userData = db.Driver.Where(d => d.user_id == request.userId)
+        //            .Select(d => new {
+        //                name = d.first_name + " " + d.last_name,
+        //                contact = d.contact_no,
+        //                license_no = d.licence_no,
+        //                street_no = d.street_no,
+        //                city = d.city,
+        //                profileImageUrl = d.profile_image_url,
+
+        //                //allRoutes = db.Routes.Where(r => r.driver_id == d.driver_id).Select(r => new {
+        //                //    r.route_id,
+        //                //    r.is_active,
+        //                //    r.is_next_route,
+        //                //    points = db.Checkpoints.Where(c => c.route_id == r.route_id)
+        //                //               .OrderBy(c => c.sequence_no)
+        //                //               .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
+        //                //               .ToList()
+        //                //}).ToList(),
+
+        //                //activeRoute = db.Routes.Where(r => r.driver_id == d.driver_id && r.is_active == true).Select(r => new {
+        //                //    r.route_id,
+        //                //    points = db.Checkpoints.Where(c => c.route_id == r.route_id)
+        //                //               .OrderBy(c => c.sequence_no)
+        //                //               .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
+        //                //               .ToList()
+        //                //}).FirstOrDefault(),
+
+        //                //nextRoute = db.Routes.Where(r => r.driver_id == d.driver_id && r.is_next_route == true).Select(r => new {
+        //                //    r.route_id,
+        //                //    points = db.Checkpoints.Where(c => c.route_id == r.route_id)
+        //                //               .OrderBy(c => c.sequence_no)
+        //                //               .Select(c => new { c.name, c.latitude, c.longitude, c.sequence_no, c.reached })
+        //                //               .ToList()
+        //                //}).FirstOrDefault()
+
+        //            }).FirstOrDefault();
+        //    }
+        //    else if (user.role_id == 2)
+        //    {
+        //        userData = db.Customer.Where(c => c.user_id == request.userId)
+        //            .Select(c => new {
+        //                name = c.first_name + " " + c.last_name,
+        //                contact = c.contact_no,
+        //                license_no = "N/A",
+        //                street_no = c.street_no,
+        //                city = c.city,
+        //                profileImageUrl = c.profile_image_url
+        //            }).FirstOrDefault();
+        //    }
+        //    else if (user.role_id == 1) // Admin
+        //    {
+        //        userData = db.Admin.Where(a => a.user_id == request.userId)
+        //            .Select(a => new {
+        //                name = a.first_name + " " + a.last_name,
+        //                contact = a.contact_no,
+        //                license_no = "N/A",
+        //                street_no = "Office",
+        //                city = "Headquarters",
+        //                profileImageUrl = "N/A"
+        //            }).FirstOrDefault();
+        //    }
+
+        //    if (userData == null) return NotFound();
+
+        //    return Ok(userData);
+        //}
+        [HttpPost]
             [Route("api/users/activate/{userId}")]
             public IHttpActionResult ActivateUser(int userId)
             {
@@ -407,9 +463,9 @@ namespace Api_cargo.Controllers
             {
                 switch (role)
                 {
-                    case "Driver": return 1;
+                    case "Driver": return 3;
                     case "Customer": return 2;
-                    case "Admin": return 3;
+                    case "Admin": return 1;
                     default: return -1;
                 }
             }
