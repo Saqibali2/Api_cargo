@@ -1,11 +1,7 @@
 ﻿using Api_cargo.Models;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Web.Http;
-using System.Data.Entity;
 
 namespace Api_cargo.Controllers
 {
@@ -17,8 +13,9 @@ namespace Api_cargo.Controllers
         [Route("api/routes/status")]
         public IHttpActionResult GetRouteStatus()
         {
-            return Ok("SUCCESS: Route connection successful.");
+            return Ok("SUCCESS");
         }
+
         [HttpPost]
         [Route("api/driver/save-route")]
         public IHttpActionResult SaveRoute(CreateRouteRequest request)
@@ -26,46 +23,45 @@ namespace Api_cargo.Controllers
             if (request == null || request.DriverId <= 0 || request.Points == null || !request.Points.Any())
                 return BadRequest("Invalid route data.");
 
-            if (request.ActivateNow)
-            {
-                var activeRoutes = db.Routes
-                    .Where(r => r.driver_id == request.DriverId && r.is_active == true)
-                    .ToList();
+            var activeRoute = db.Routes.FirstOrDefault(x =>
+                x.driver_id == request.DriverId &&
+                x.is_active == true);
 
-                foreach (var ar in activeRoutes)
-                {
-                    ar.is_active = false;
-                }
+            var nextRoute = db.Routes.FirstOrDefault(x =>
+                x.driver_id == request.DriverId &&
+                x.is_next_route == true);
 
-                db.SaveChanges();
-            }
+            bool makeActive = false;
+            bool makeNext = false;
 
-   
+            if (activeRoute == null)
+                makeActive = true;
+            else if (nextRoute == null)
+                makeNext = true;
+
             var route = new Routes
             {
                 driver_id = request.DriverId,
-                is_active = request.ActivateNow,
-                is_next_route = !request.ActivateNow,
+                is_active = makeActive,
+                is_next_route = makeNext,
                 base_fare = request.BaseFare
             };
 
             db.Routes.Add(route);
             db.SaveChanges();
 
-            var routeSchedule = new RouteSchedule
+            db.RouteSchedule.Add(new RouteSchedule
             {
                 route_id = route.route_id,
                 departureDate = request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ss"),
                 arrivalDate = request.ArrivalDate.ToString("yyyy-MM-ddTHH:mm:ss")
-            };
+            });
 
-            db.RouteSchedule.Add(routeSchedule);
             db.SaveChanges();
-
 
             foreach (var cp in request.Points)
             {
-                var checkpoint = new Checkpoints
+                db.Checkpoints.Add(new Checkpoints
                 {
                     name = cp.Name,
                     latitude = cp.Latitude,
@@ -74,271 +70,231 @@ namespace Api_cargo.Controllers
                     sequence_no = cp.SequenceNo,
                     route_id = route.route_id,
                     reached = false
-                };
-
-                db.Checkpoints.Add(checkpoint);
+                });
             }
 
             db.SaveChanges();
 
             return Ok(new
             {
-                message = "Route saved successfully",
-                routeId = route.route_id
+                routeId = route.route_id,
+                isActive = route.is_active,
+                isNext = route.is_next_route
             });
         }
 
-        //[HttpGet]
-        //[Route("api/routes")]
-        //public IHttpActionResult GetAllRoutes()
-        //{
-        //    var routes = db.Routes.Select(r => new
-        //    {
-        //        r.route_id,
-        //        r.driver_id,
-        //        r.from_checkpoint,
-        //        r.to_checkpoint,
-        //        r.distance_km,
+        [HttpGet]
+        [Route("api/driver/get-routes/{driverId}")]
+        public IHttpActionResult GetRoutes(int driverId)
+        {
+            var routes = db.Routes
+                .Where(x => x.driver_id == driverId)
+                .OrderByDescending(x => x.route_id)
+                .ToList()
+                .Select(r => new
+                {
+                    routeId = r.route_id,
+                    driverId = r.driver_id,
+                    fare = r.base_fare,
+                    isActive = r.is_active,
+                    isNextRoute = r.is_next_route,
 
-        //    }).ToList();
-        //    return Ok(routes);
-        //}
+                    schedule = db.RouteSchedule
+                    .Where(s => s.route_id == r.route_id)
+                    .Select(s => new
+                    {
+                        departureDate = s.departureDate,
+                        arrivalDate = s.arrivalDate
+                    }).FirstOrDefault(),
 
-        //[HttpGet]
-        //[Route("api/routes/{id}")]
-        //public IHttpActionResult GetRoute(int id)
-        //{
-        //    var result = db.Routes.Where(r => r.route_id == id).Select(R => new
-        //    {
-        //        R.route_id,
-        //        R.driver_id,
-        //        R.from_checkpoint,
-        //        R.to_checkpoint,
-        //        R.distance_km,
+                    startPoint = db.Checkpoints
+                    .Where(c => c.route_id == r.route_id)
+                    .OrderBy(c => c.sequence_no)
+                    .Select(c => c.name)
+                    .FirstOrDefault(),
 
-        //    });
-        //    if (result == null)
-        //        return BadRequest("ERROR: No entires found.");
-        //    else
-        //        return Ok(result);
-        //}
+                    endPoint = db.Checkpoints
+                    .Where(c => c.route_id == r.route_id)
+                    .OrderByDescending(c => c.sequence_no)
+                    .Select(c => c.name)
+                    .FirstOrDefault(),
 
-        //[HttpGet]
-        //[Route("api/routes/driver/{driverId}")]
-        //public IHttpActionResult GetRoutesByDriverId(int driverId)
-        //{
-        //    var routes = db.Routes.Where(r => r.driver_id == driverId).Select(d => new
-        //    {
-        //        d.route_id,
-        //        d.driver_id,
-        //        d.from_checkpoint,
-        //        d.to_checkpoint,
-        //        d.distance_km,
+                    totalStops = db.Checkpoints
+                    .Count(c => c.route_id == r.route_id)
+                });
 
-        //    }).ToList();
-        //    if (routes == null || routes.Count == 0)
-        //    {
-        //        return NotFound();
-        //    }
-        //    return Ok(routes);
-        //}
+            return Ok(routes);
+        }
 
-        //[HttpGet]
-        //[Route("api/routes/{routeID}/checkpoints")]
-        //public IHttpActionResult GetRouteCheckpoints(int routeID)
-        //{
-        //    var checkpoints = db.RouteCheckpoints
-        //        .Where(rc => rc.route_id == routeID)
-        //        .OrderBy(rc => rc.sequence_no)
-        //        .Select(rc => new
-        //        {
-        //            rc.route_detail_id,
-        //            rc.sequence_no,
-        //            rc.checkpoint_id,
-        //            rc.reached
-        //        }).ToList();
+        [HttpGet]
+        [Route("api/driver/get-route-detail/{routeId}")]
+        public IHttpActionResult GetRouteDetail(int routeId)
+        {
+            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
 
-        //    return Ok(checkpoints);
-        //}
-        //[HttpPost]
-        //[Route("api/routes/create")]
-        //public IHttpActionResult CreateRoute(CreateRouteDto dto)
-        //{
-        //    if (dto.route == null)
-        //        return BadRequest("ERROR: Route data is null.");
+            if (route == null)
+                return BadRequest("Route not found.");
 
-        //    if (dto.cps == null || !dto.cps.Any())
-        //        return BadRequest("ERROR: Checkpoints are missing.");
+            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == routeId);
 
-        //    // Save route first
-        //    db.Routes.Add(dto.route);
-        //    db.SaveChanges();
+            var checkpoints = db.Checkpoints
+                .Where(x => x.route_id == routeId)
+                .OrderBy(x => x.sequence_no)
+                .ToList()
+                .Select(c => new
+                {
+                    checkpointId = c.checkpoint_id,
+                    name = c.name,
+                    latitude = c.latitude,
+                    longitude = c.longitude,
+                    sequenceNo = c.sequence_no,
+                    reached = c.reached
+                });
 
-        //    // Save checkpoints (EF 5 safe)
-        //    int sequence = 1;
-        //    foreach (var cp in dto.cps)
-        //    {
-        //        db.RouteCheckpoints.Add(new RouteCheckpoints
-        //        {
-        //            route_id = dto.route.route_id,
-        //            checkpoint_id = cp.checkpoint_id,
-        //            sequence_no = sequence++,
-        //            reached = false
-        //        });
-        //    }
+            return Ok(new
+            {
+                routeId = route.route_id,
+                fare = route.base_fare,
+                isActive = route.is_active,
+                isNextRoute = route.is_next_route,
+                departureDate = schedule?.departureDate,
+                arrivalDate = schedule?.arrivalDate,
+                checkpoints = checkpoints
+            });
+        }
 
-        //    db.SaveChanges();
+        [HttpPost]
+        [Route("api/driver/activate-route/{routeId}")]
+        public IHttpActionResult ActivateRoute(int routeId)
+        {
+            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
 
-        //    return Ok("SUCCESS: Route created successfully.");
-        //}
+            if (route == null)
+                return BadRequest("Route not found.");
 
-        //[HttpDelete]
-        //[Route("api/routes/delete/{id}")]
-        //public IHttpActionResult DeleteRoute(int id)
-        //{
-        //    var route = db.Routes.FirstOrDefault(r => r.route_id == id);
-        //    if (route == null)
-        //        return NotFound();
+            var currentActive = db.Routes.FirstOrDefault(x =>
+                x.driver_id == route.driver_id &&
+                x.is_active == true);
 
-        //    var routeCheckpoints = db.RouteCheckpoints
-        //                             .Where(rc => rc.route_id == id)
-        //                             .ToList();
+            if (currentActive != null && currentActive.route_id != routeId)
+                return BadRequest("Another route already active.");
 
-        //    // EF 5 compatible delete
-        //    foreach (var rc in routeCheckpoints)
-        //    {
-        //        db.RouteCheckpoints.Remove(rc);
-        //    }
+            var allNext = db.Routes.Where(x =>
+                x.driver_id == route.driver_id &&
+                x.is_next_route == true).ToList();
 
-        //    db.Routes.Remove(route);
-        //    db.SaveChanges();
+            foreach (var item in allNext)
+                item.is_next_route = false;
 
-        //    return Ok("SUCCESS: Route deleted successfully.");
-        //}
+            route.is_active = true;
+            route.is_next_route = false;
 
+            db.SaveChanges();
 
-        //[HttpGet]
-        //[Route("api/routes/active/{driverID}")]
-        //public IHttpActionResult GetActiveRoute(int driverID)
-        //{
-        //    var activeRoute = db.ActiveRoute.Select(nr => new
-        //    {
-        //        nr.route_id,
-        //        nr.active_route_id,
-        //        nr.driver_id,
-        //        nr.departure_date,
-        //        nr.arrival_date,
-        //        nr.base_fare,
+            return Ok("Activated");
+        }
 
-        //    }).FirstOrDefault(ar => ar.driver_id == driverID);
-        //    if (activeRoute == null)
-        //        return BadRequest("ERROR: No active route found.");
-        //    return Ok(activeRoute);
-        //}
+        [HttpPost]
+        [Route("api/driver/schedule-next-route/{routeId}")]
+        public IHttpActionResult ScheduleNextRoute(int routeId)
+        {
+            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
 
-        //[HttpPost]
-        //[Route("api/routes/activatenext/{routeID}")]
-        //public IHttpActionResult ActivateNextRoute(RouteDto dto)
-        //{
-        //    var route = db.Routes.FirstOrDefault(r => r.route_id == dto.RouteID);
-        //    if (route == null)
-        //        return BadRequest("ERROR: Route not found.");
+            if (route == null)
+                return BadRequest("Route not found.");
 
-        //    var existingNextRoute = db.NextRoute.FirstOrDefault(nr => nr.route_id == dto.RouteID);
+            if (route.is_active == true)
+                return BadRequest("Active route cannot be next route.");
 
-        //    if (existingNextRoute != null)
-        //    {
-        //        existingNextRoute.departure_date = dto.Departure;
-        //        existingNextRoute.arrival_date = dto.Arrival;
-        //    }
-        //    else
-        //    {
-        //        var nextRoute = new NextRoute
-        //        {
-        //            route_id = dto.RouteID,
-        //            driver_id = route.driver_id,
-        //            departure_date = dto.Departure,
-        //            arrival_date = dto.Arrival
-        //        };
-        //        db.NextRoute.Add(nextRoute);
-        //    }
+            var nextRoute = db.Routes.FirstOrDefault(x =>
+                x.driver_id == route.driver_id &&
+                x.is_next_route == true &&
+                x.route_id != routeId);
 
-        //    db.SaveChanges();
-        //    return Ok("SUCCESS: Next Route activated successfully.");
-        //}
+            if (nextRoute != null)
+                return BadRequest("Next route already exists.");
 
-        //[HttpPost]
-        //[Route("api/routes/activate/{routeID}")]
-        //public IHttpActionResult ActivateRoute(RouteDto dto)
-        //{
-        //    var route = db.Routes.FirstOrDefault(r => r.route_id == dto.RouteID);
-        //    if (route == null)
-        //        return BadRequest("ERROR: Route not found.");
+            route.is_next_route = true;
 
-        //    var existingActiveRoute = db.ActiveRoute.FirstOrDefault(ar => ar.driver_id == route.driver_id);
+            db.SaveChanges();
 
-        //    if (existingActiveRoute != null)
-        //    {
-        //        existingActiveRoute.departure_date = dto.Departure;
-        //        existingActiveRoute.arrival_date = dto.Arrival;
-        //    }
-        //    else
-        //    {
-        //        var activeRoute = new ActiveRoute
-        //        {
-        //            route_id = dto.RouteID,
-        //            driver_id = route.driver_id,
-        //            departure_date = dto.Departure,
-        //            arrival_date = dto.Arrival
-        //        };
-        //        db.ActiveRoute.Add(activeRoute);
-        //    }
+            return Ok("Scheduled");
+        }
 
-        //    db.SaveChanges();
-        //    return Ok("SUCCESS: Route activated successfully.");
-        //}
+        [HttpDelete]
+        [Route("api/driver/delete-route/{routeId}")]
+        public IHttpActionResult DeleteRoute(int routeId)
+        {
+            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
 
+            if (route == null)
+                return BadRequest("Route not found.");
 
-        //[HttpGet]
-        //[Route("api/routes/next/{driverID}")]
-        //public IHttpActionResult GetNextRoute(int driverID)
-        //{
-        //    var nextRoute = db.NextRoute.Select(nr => new
-        //    {
-        //        nr.route_id,
-        //        nr.next_route_id,
-        //        nr.driver_id,
-        //        nr.departure_date,
-        //        nr.arrival_date,
-        //        nr.base_fare,
+            if (route.is_active == true)
+                return BadRequest("Active route cannot be deleted.");
 
-        //    }).FirstOrDefault(ar => ar.driver_id == driverID);
-        //    if (nextRoute == null)
-        //        return BadRequest("ERROR: No next route found.");
-        //    return Ok(nextRoute);
-        //}
+            var checkpoints = db.Checkpoints.Where(x => x.route_id == routeId).ToList();
+            var schedule = db.RouteSchedule.Where(x => x.route_id == routeId).ToList();
 
-        //[HttpGet]
-        //[Route("api/shipments/{id}/packagestest")]
-        //public IHttpActionResult GetShipmentPackages(int id)
-        //{
-        //    var packageInclude = db.Shipments.Include("Packages").FirstOrDefault(s => s.shipment_id == id);
-        //    return Ok(packageInclude);
-        //}
+            foreach (var item in checkpoints)
+                db.Checkpoints.Remove(item);
 
-        //[HttpPut]
-        //[Route("api/routes/update/{routeID}")]
-        //public IHttpActionResult UpdateRoute(int routeID, Routes updatedRoute)
-        //{
-        //    var route = db.Routes.FirstOrDefault(r => r.route_id == routeID);
-        //    if (route == null)
-        //        return NotFound();
-        //    route.driver_id = updatedRoute.driver_id;
-        //    route.from_checkpoint = updatedRoute.from_checkpoint;
-        //    route.to_checkpoint = updatedRoute.to_checkpoint;
-        //    route.distance_km = updatedRoute.distance_km;
-        //    db.SaveChanges();
-        //    return Ok("SUCCESS: Route updated successfully.");
-        //}
+            foreach (var item in schedule)
+                db.RouteSchedule.Remove(item);
+
+            db.Routes.Remove(route);
+
+            db.SaveChanges();
+
+            return Ok("Deleted");
+        }
+
+        [HttpPut]
+        [Route("api/driver/edit-route/{routeId}")]
+        public IHttpActionResult EditRoute(int routeId, CreateRouteRequest request)
+        {
+            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
+
+            if (route == null)
+                return BadRequest("Route not found.");
+
+            if (route.is_active == true)
+                return BadRequest("Active route cannot be edited.");
+
+            route.base_fare = request.BaseFare;
+
+            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == routeId);
+
+            if (schedule != null)
+            {
+                schedule.departureDate = request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ss");
+                schedule.arrivalDate = request.ArrivalDate.ToString("yyyy-MM-ddTHH:mm:ss");
+            }
+
+            var oldPoints = db.Checkpoints.Where(x => x.route_id == routeId).ToList();
+
+            foreach (var item in oldPoints)
+                db.Checkpoints.Remove(item);
+
+            db.SaveChanges();
+
+            foreach (var cp in request.Points)
+            {
+                db.Checkpoints.Add(new Checkpoints
+                {
+                    name = cp.Name,
+                    latitude = cp.Latitude,
+                    longitude = cp.Longitude,
+                    driver_id = route.driver_id,
+                    route_id = routeId,
+                    sequence_no = cp.SequenceNo,
+                    reached = false
+                });
+            }
+
+            db.SaveChanges();
+
+            return Ok("Updated");
+        }
     }
 }
