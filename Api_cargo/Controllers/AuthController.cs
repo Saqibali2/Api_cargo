@@ -297,8 +297,8 @@ namespace Api_cargo.Controllers
                 catch (Exception ex)
                 {
                     return BadRequest("EXCEPTION: " + ex.Message);
-                }
             }
+        }
         [HttpGet]
         [Route("api/users/getdata/{userId}")]
         public IHttpActionResult GetUserData(int userId)
@@ -311,10 +311,12 @@ namespace Api_cargo.Controllers
             if (user.role_id == 3)
             {
                 userData = db.Driver.Where(d => d.user_id == userId)
-                    .Select(d => new {
+                    .Select(d => new
+                    {
                         roleBasedId = 3,
                         name = d.first_name + " " + d.last_name,
                         contact = d.contact_no,
+                        email = user.email,
                         license_no = d.licence_no,
                         street_no = d.street_no,
                         city = d.city,
@@ -324,10 +326,12 @@ namespace Api_cargo.Controllers
             else if (user.role_id == 2)
             {
                 userData = db.Customer.Where(c => c.user_id == userId)
-                    .Select(c => new {
+                    .Select(c => new
+                    {
                         roleBasedId = 2,
                         name = c.first_name + " " + c.last_name,
                         contact = c.contact_no,
+                        email = user.email,
                         street_no = c.street_no,
                         city = c.city,
                         profileImageUrl = c.profile_image_url
@@ -342,13 +346,94 @@ namespace Api_cargo.Controllers
                     contact = "N/A",
                     street_no = "Office",
                     city = "HQ",
-                    
+
                 };
             }
 
             if (userData == null) return NotFound();
 
             return Ok(userData);
+        }
+        [HttpPut]
+        [Route("api/users/update/{userId}")]
+        public IHttpActionResult UpdateUserData(int userId)
+        {
+            try
+            {
+                var httpRequest = HttpContext.Current.Request;
+
+                var user = db.Users.Find(userId);
+
+                if (user == null)
+                    return NotFound();
+
+                // EMAIL belongs to Users table
+                user.email = httpRequest["email"];
+
+                // DRIVER
+                if (user.role_id == 3)
+                {
+                    var driver = db.Driver.FirstOrDefault(x => x.user_id == userId);
+
+                    if (driver == null)
+                        return NotFound();
+
+                    string fullName = httpRequest["name"];
+
+                    if (!string.IsNullOrEmpty(fullName))
+                    {
+                        var parts = fullName.Trim().Split(' ');
+
+                        driver.first_name = parts[0];
+
+                        driver.last_name = parts.Length > 1
+                            ? string.Join(" ", parts.Skip(1))
+                            : "";
+                    }
+
+                    driver.contact_no = httpRequest["contact"];
+                    driver.street_no = httpRequest["street_no"];
+                    driver.city = httpRequest["city"];
+                }
+
+                // CUSTOMER
+                else if (user.role_id == 2)
+                {
+                    var customer = db.Customer.FirstOrDefault(x => x.user_id == userId);
+
+                    if (customer == null)
+                        return NotFound();
+
+                    string fullName = httpRequest["name"];
+
+                    if (!string.IsNullOrEmpty(fullName))
+                    {
+                        var parts = fullName.Trim().Split(' ');
+
+                        customer.first_name = parts[0];
+
+                        customer.last_name = parts.Length > 1
+                            ? string.Join(" ", parts.Skip(1))
+                            : "";
+                    }
+
+                    customer.contact_no = httpRequest["contact"];
+                    customer.street_no = httpRequest["street_no"];
+                    customer.city = httpRequest["city"];
+                }
+
+                db.SaveChanges();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Profile updated successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
         //[HttpPost]
         //[Route("api/users/getdata")]
