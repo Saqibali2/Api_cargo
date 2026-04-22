@@ -39,8 +39,6 @@ namespace Api_cargo.Controllers
 
             return Ok(new { shipmentId = shipment.shipment_id });
         }
-
-
         [Route("api/shipments/add/package")]
         [HttpPost]
         public IHttpActionResult AddPackage(PackageWithMapping request)
@@ -132,7 +130,6 @@ namespace Api_cargo.Controllers
             if (shipment.status != "Draft")
                 return BadRequest("Shipment already processed");
 
-
             var hasPackages = db.Packages
                 .Any(p => p.shipment_id == model.shipment_id);
 
@@ -146,10 +143,6 @@ namespace Api_cargo.Controllers
             var existingRecipient = db.RecipientDetails
                 .FirstOrDefault(r => r.shipment_id == model.shipment_id);
 
-            if (existingRecipient != null)
-                return BadRequest("Recipient already exists");
-
-
             shipment.pickup_lat = model.pickup_lat;
             shipment.pickup_long = model.pickup_long;
             shipment.pickup_address = model.pickup_address;
@@ -161,16 +154,26 @@ namespace Api_cargo.Controllers
             shipment.strict = model.strict;
             shipment.status = "Pending";
 
-            var recipient = new RecipientDetails
+            if (existingRecipient != null)
             {
-                shipment_id = model.shipment_id,
-                recipient_fname = model.recipient_fname,
-                recipient_lname = model.recipient_lname,
-                recipient_contact = model.recipient_contact,
-                instructionsMessage = model.instructionsMessage
-            };
+                existingRecipient.recipient_fname = model.recipient_fname;
+                existingRecipient.recipient_lname = model.recipient_lname;
+                existingRecipient.recipient_contact = model.recipient_contact;
+                existingRecipient.instructionsMessage = model.instructionsMessage;
+            }
+            else
+            {
+                var recipient = new RecipientDetails
+                {
+                    shipment_id = model.shipment_id,
+                    recipient_fname = model.recipient_fname,
+                    recipient_lname = model.recipient_lname,
+                    recipient_contact = model.recipient_contact,
+                    instructionsMessage = model.instructionsMessage
+                };
 
-            db.RecipientDetails.Add(recipient);
+                db.RecipientDetails.Add(recipient);
+            }
 
             db.SaveChanges();
 
