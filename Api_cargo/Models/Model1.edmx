@@ -246,6 +246,7 @@
           <Property Name="delivery_lat" Type="float" />
           <Property Name="delivery_long" Type="float" />
           <Property Name="delivery_address" Type="nvarchar" MaxLength="500" />
+          <Property Name="pickup_date" Type="datetime" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -1343,6 +1344,7 @@
           <NavigationProperty Name="RecipientDetails" Relationship="Self.FK__Recipient__shipm__75A278F5" FromRole="Shipments" ToRole="RecipientDetails" />
           <NavigationProperty Name="Requests" Relationship="Self.FK__Requests__shipme__787EE5A0" FromRole="Shipments" ToRole="Requests" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__shipment___04E4BC85" FromRole="Shipments" ToRole="Trips" />
+          <Property Name="pickup_date" Type="DateTime" Precision="3" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -2420,6 +2422,7 @@
           <EntitySetMapping Name="Shipments">
             <EntityTypeMapping TypeName="CargoConnectModel.Shipments">
               <MappingFragment StoreEntitySet="Shipments">
+                <ScalarProperty Name="pickup_date" ColumnName="pickup_date" />
                 <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="sender_name" ColumnName="sender_name" />
                 <ScalarProperty Name="sender_contact" ColumnName="sender_contact" />

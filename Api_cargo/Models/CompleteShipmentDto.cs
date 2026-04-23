@@ -23,5 +23,6 @@ namespace Api_cargo.Models
         public string recipient_lname { get; set; }
         public string recipient_contact { get; set; }
         public string instructionsMessage { get; set; }
+        public DateTime? booking_date { get; set; }
     }
 }

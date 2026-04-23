@@ -8,140 +8,128 @@ using System.Web.Http;
 
 namespace Api_cargo.Controllers
 {
- public class DriverController : ApiController
-        {
+    public class DriverController : ApiController
+    {
         CargoConnectEntities3 db = new CargoConnectEntities3();
 
-            [HttpGet]
-            [Route("api/drivers/status")]
-            public IHttpActionResult GetDriverStatus()
+        [HttpGet]
+        [Route("api/drivers/status")]
+        public IHttpActionResult GetDriverStatus()
+        {
+            return Ok("SUCCESS: Driver connection successful.");
+        }
+        [HttpGet]
+        [Route("api/drivers")]
+        public IHttpActionResult GetAllDrivers()
+        {
+            var drivers = db.Driver.Select(d => new
             {
-                return Ok("SUCCESS: Driver connection successful.");
+                d.driver_id,
+                d.user_id,
+                d.first_name,
+                d.last_name,
+                d.CNIC,
+                d.contact_no,
+                d.licence_no,
+                d.city,
+                d.street_no,
+                d.profile_image_url,
+                d.is_available,
+
+            }).ToList();
+            return Ok(drivers);
+        }
+        [HttpGet]
+        [Route("api/drivers/{id}")]
+        public IHttpActionResult GetDriver(int id)
+        {
+            var result = db.Driver.Select(d => new
+            {
+                d.driver_id,
+                d.user_id,
+                d.first_name,
+                d.last_name,
+                d.CNIC,
+                d.contact_no,
+                d.licence_no,
+                d.city,
+                d.street_no,
+                d.profile_image_url,
+                d.is_available,
+
+            }).Where(d => d.driver_id == id).FirstOrDefault(d => d.driver_id == id);
+            return Ok(result);
+        }
+
+        [HttpGet]
+        [Route("api/drivers/byuserid/{userID}")]
+        public IHttpActionResult GetDriverByUserId(int userId)
+        {
+            var result = db.Driver.Select(d => new
+            {
+                d.driver_id,
+                d.user_id,
+                d.first_name,
+                d.last_name,
+                d.CNIC,
+                d.contact_no,
+                d.licence_no,
+                d.city,
+                d.street_no,
+                d.profile_image_url,
+                d.is_available,
+
+            }).Where(d => d.user_id == userId).Select(d => new
+            {
+                d.driver_id,
+                d.user_id,
+                d.first_name,
+                d.last_name,
+                d.CNIC,
+                d.contact_no,
+                d.licence_no,
+                d.city,
+                d.street_no,
+                d.profile_image_url,
+                d.is_available,
+
+            }).FirstOrDefault(d => d.user_id == userId);
+            if (result == null)
+            {
+                return NotFound();
             }
-            [HttpGet]
-            [Route("api/drivers")]
-            public IHttpActionResult GetAllDrivers()
-            {
-                var drivers = db.Driver.Select(d => new
-                {
-                    d.driver_id,
-                    d.user_id,
-                    d.first_name,
-                    d.last_name,
-                    d.CNIC,
-                    d.contact_no,
-                    d.licence_no,
-                    d.city,
-                    d.street_no,
-                    d.profile_image_url,
-                    d.is_available,
+            return Ok(result);
+        }
 
-                }).ToList();
-                return Ok(drivers);
-            }
-            [HttpGet]
-            [Route("api/drivers/{id}")]
-            public IHttpActionResult GetDriver(int id)
-            {
-                var result = db.Driver.Select(d => new
-                {
-                    d.driver_id,
-                    d.user_id,
-                    d.first_name,
-                    d.last_name,
-                    d.CNIC,
-                    d.contact_no,
-                    d.licence_no,
-                    d.city,
-                    d.street_no,
-                    d.profile_image_url,
-                    d.is_available,
-
-                }).Where(d => d.driver_id == id).FirstOrDefault(d => d.driver_id == id);
-                return Ok(result);
-            }
-
-            [HttpGet]
-            [Route("api/drivers/byuserid/{userID}")]
-            public IHttpActionResult GetDriverByUserId(int userId)
-            {
-                var result = db.Driver.Select(d => new
-                {
-                    d.driver_id,
-                    d.user_id,
-                    d.first_name,
-                    d.last_name,
-                    d.CNIC,
-                    d.contact_no,
-                    d.licence_no,
-                    d.city,
-                    d.street_no,
-                    d.profile_image_url,
-                    d.is_available,
-
-                }).Where(d => d.user_id == userId).Select(d => new
-                {
-                    d.driver_id,
-                    d.user_id,
-                    d.first_name,
-                    d.last_name,
-                    d.CNIC,
-                    d.contact_no,
-                    d.licence_no,
-                    d.city,
-                    d.street_no,
-                    d.profile_image_url,
-                    d.is_available,
-
-                }).FirstOrDefault(d => d.user_id == userId);
-                if (result == null)
-                {
-                    return NotFound();
-                }
-                return Ok(result);
-            }
-
-            [HttpGet]
-            [Route("api/drivers/{id}/requests")]
-            public IHttpActionResult GetDriverRequests(int id)
-            {
-                var requests = db.Requests
-                    .Where(r => r.driver_id == id)
-                    .Select(r => new
+        [HttpGet]
+        [Route("api/drivers/{id}/requests")]
+        public IHttpActionResult GetDriverRequests(int id)
+        {
+            var data = db.Requests
+                .Where(r => r.driver_id == id && r.status == "Pending") // 🔥 filter
+                .Join(db.Shipments,
+                    r => r.shipment_id,
+                    s => s.shipment_id,
+                    (r, s) => new
                     {
                         r.request_id,
                         r.shipment_id,
-                        r.status
+
+                        Title = "Shipment #" + s.shipment_id,
+                        PickupCity = s.pickup_address,
+                        DestinationCity = s.delivery_address,
+
+                        Weight = s.total_weight,
+                        PackageCount = s.package_count,
+
+                        PickupDate = s.pickup_date,
+
+                        CustomerName = s.sender_name,
+                        CustomerContact = s.sender_contact
                     })
-                    .ToList();
+                .ToList();
 
-                var shipmentIds = requests.Select(r => r.shipment_id).ToList();
-
-                var shipments = db.Shipments
-                    .Where(s => shipmentIds.Contains(s.shipment_id))
-                    .Select(s => new
-                    {
-                        s.shipment_id,
-                        s.sender_name,
-                        s.sender_contact,
-                        s.delivery_lat,
-                        s.delivery_long,
-                        s.delivery_address,
-                        s.pickup_lat,
-                        s.pickup_long,
-                        s.pickup_address,
-                        s.customer_id,
-                        s.package_count,
-                        s.total_weight
-                    })
-                    .ToList();
-
-                return Ok(new
-                {
-                    requestsData = requests,
-                    totalRequests = requests.Count,
-                    shipmentData = shipments
-                });
+            return Ok(data);
         }
         [HttpPost]
         [Route("api/drivers/find")]
@@ -583,5 +571,61 @@ namespace Api_cargo.Controllers
              return Ok("SUCCESS: Driver deleted successfully.");
          }*/
 
+
+        /*---------------------------*/
+        [HttpPost]
+        [Route("api/request/send")]
+        public IHttpActionResult SendRequest(int shipmentId, int driverId)
+        {
+            var exists = db.Requests.FirstOrDefault(r =>
+                r.shipment_id == shipmentId &&
+                r.driver_id == driverId &&
+                r.status == "Pending"
+            );
+
+            if (exists != null)
+                return Ok("Already sent");
+
+            var request = new Requests
+            {
+                shipment_id = shipmentId,
+                driver_id = driverId,
+                status = "Pending"
+            };
+
+            db.Requests.Add(request);
+            db.SaveChanges();
+
+            return Ok("Request sent");
+        }
+       
+
+        [HttpPost]
+        [Route("api/request/accept")]
+        public IHttpActionResult AcceptRequest(int requestId, int driverId)
+        {
+            var req = db.Requests.FirstOrDefault(r => r.request_id == requestId);
+
+            if (req == null)
+                return BadRequest("Request not found");
+
+            if (req.status == "Accepted")
+                return Ok("Already taken");
+
+            // 🔥 update request
+            req.status = "Accepted";
+
+            // 🔥 update shipment
+            var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == req.shipment_id);
+            if (shipment != null)
+            {
+                shipment.status = "Assigned";
+                // optional: shipment.driver_id = driverId;
+            }
+
+            db.SaveChanges();
+
+            return Ok("Accepted");
+        }
     }
 }

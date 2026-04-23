@@ -140,9 +140,14 @@ namespace Api_cargo.Controllers
                 string.IsNullOrWhiteSpace(model.recipient_contact))
                 return BadRequest("Recipient details are required");
 
+            // 🔥 FIX: DATE VALIDATION
+            if (model.booking_date == null)
+                return BadRequest("Pickup date is required");
+
             var existingRecipient = db.RecipientDetails
                 .FirstOrDefault(r => r.shipment_id == model.shipment_id);
 
+            // 🔥 LOCATION
             shipment.pickup_lat = model.pickup_lat;
             shipment.pickup_long = model.pickup_long;
             shipment.pickup_address = model.pickup_address;
@@ -150,6 +155,9 @@ namespace Api_cargo.Controllers
             shipment.delivery_lat = model.delivery_lat;
             shipment.delivery_long = model.delivery_long;
             shipment.delivery_address = model.delivery_address;
+
+            // 🔥 IMPORTANT FIX: SAVE DATE
+            shipment.pickup_date = model.booking_date;
 
             shipment.strict = model.strict;
             shipment.status = "Pending";
@@ -181,7 +189,8 @@ namespace Api_cargo.Controllers
             {
                 message = "Shipment completed successfully",
                 shipmentId = shipment.shipment_id,
-                status = shipment.status
+                status = shipment.status,
+                pickupDate = shipment.pickup_date
             });
         }
         [Route("api/shipments/edit/recipient/{id}")]
