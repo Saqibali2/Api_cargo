@@ -273,6 +273,63 @@ namespace Api_cargo.Controllers
             return Ok(shipments);
         }
 
+        [HttpDelete]
+        [Route("api/delete/{shipmentId}")]
+        public IHttpActionResult DeleteShipment(int shipmentId)
+        {
+            using (var scope = new System.Transactions.TransactionScope())
+            {
+                try
+                {
+                    var shipment = db.Shipments
+                        .FirstOrDefault(s => s.shipment_id == shipmentId);
+
+                    if (shipment == null)
+                        return NotFound();
+
+                    // 🔥 1. GET PACKAGES
+                    var packages = db.Packages
+                        .Where(p => p.shipment_id == shipmentId)
+                        .ToList();
+
+                    foreach (var pkg in packages)
+                    {
+                        // 🔥 1.1 DELETE MAPPING FIRST
+                        var mappings = db.PackageAttributeMapping
+                            .Where(m => m.package_id == pkg.package_id)
+                            .ToList();
+
+                        foreach (var map in mappings)
+                        {
+                            db.PackageAttributeMapping.Remove(map);
+                        }
+
+                        // 🔥 1.2 DELETE PACKAGE
+                        db.Packages.Remove(pkg);
+                    }
+
+                    // 🔥 2. DELETE RECIPIENT
+                    var recipient = db.RecipientDetails
+                        .FirstOrDefault(r => r.shipment_id == shipmentId);
+
+                    if (recipient != null)
+                        db.RecipientDetails.Remove(recipient);
+
+                    // 🔥 3. DELETE SHIPMENT
+                    db.Shipments.Remove(shipment);
+
+                    db.SaveChanges();
+                    scope.Complete();
+
+                    return Ok(new { message = "Shipment deleted successfully" });
+                }
+                catch (Exception ex)
+                {
+                    return InternalServerError(ex);
+                }
+            }
+        }
+
     }
 
     public class PackageWithMapping

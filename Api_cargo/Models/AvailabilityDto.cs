@@ -15,5 +15,26 @@ namespace Api_cargo.Models
         public DateTime requestedDate { get; set; }
 
         public bool isStrict { get; set; }
+        public int DriverId { get; set; }
+
+        public string DriverName { get; set; }
+
+        public string ContactNo { get; set; }
+
+        public string TruckType { get; set; }
+
+        public string PickupCity { get; set; }
+
+        public string DestinationCity { get; set; }
+
+        public double Price { get; set; }
+
+        public bool IsFull { get; set; }
+
+        public int RouteId { get; set; }
+
+        public double Distance { get; set; }
+        public double Rating { get; set; }
+        public int TotalReviews { get; set; }
     }
 }
