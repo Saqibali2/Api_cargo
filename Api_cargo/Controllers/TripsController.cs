@@ -10,7 +10,7 @@ namespace Api_cargo.Controllers
 {
         public class TripsController : ApiController
         {
-            private readonly CargoConnectEntities3 db = new CargoConnectEntities3();
+            private readonly CargoConnectEntities4 db = new CargoConnectEntities4();
 
             [HttpGet]
             [Route("api/trips/status")]
@@ -19,16 +19,6 @@ namespace Api_cargo.Controllers
                 return Ok("SUCCESS: Trips connection successful.");
             }
 
-            [HttpGet]
-            [Route("api/trucks/{regNo}/shipments")]
-            public IHttpActionResult GetShipmentsByTruck(string regNo)
-            {
-                var shipments = db.Trips
-                    .Where(t => t.vehicle_reg_no == regNo && t.status == "In Transit")
-                    .Select(t => t.shipment_id)
-                    .ToList();
-                return Ok(shipments);
-            }
         [HttpGet]
         [Route("api/bookings/{bookingId}")]
         public IHttpActionResult GetBookingById(int bookingId)

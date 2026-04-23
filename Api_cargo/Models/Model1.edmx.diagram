@@ -4,35 +4,35 @@
   <edmx:Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
     <!-- Diagram content (shape and connector positions) -->
     <edmx:Diagrams>
-      <Diagram DiagramId="9b9da348142647c19e489051c8a58716" Name="Diagram1">
-        <EntityTypeShape EntityType="CargoConnectModel.Admin" Width="1.5" PointX="5.25" PointY="17.625" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Bookings" Width="1.5" PointX="9.75" PointY="34.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.ChatAttachments" Width="1.5" PointX="14.25" PointY="23.375" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.ChatMessages" Width="1.5" PointX="12" PointY="23.125" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.ChatThreads" Width="1.5" PointX="9.75" PointY="22.625" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Checkpoints" Width="1.5" PointX="12.75" PointY="42.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Customer" Width="1.5" PointX="5.25" PointY="23" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Driver" Width="1.5" PointX="5.25" PointY="37.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.DriverDocuments" Width="1.5" PointX="7.5" PointY="38.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Notifications" Width="1.5" PointX="5.25" PointY="43.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.PackageAttributeMapping" Width="1.5" PointX="12" PointY="27.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.PackageAttributes" Width="1.5" PointX="9.75" PointY="19.75" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Packages" Width="1.5" PointX="9.75" PointY="26.875" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.RecipientDetails" Width="1.5" PointX="9.75" PointY="31" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Requests" Width="1.5" PointX="12.75" PointY="33.625" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Reviews" Width="1.5" PointX="15" PointY="33" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Roles" Width="1.5" PointX="0.75" PointY="29.25" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Routes" Width="1.5" PointX="7.5" PointY="42" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.RouteSchedule" Width="1.5" PointX="9.75" PointY="42.375" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Shipments" Width="1.5" PointX="7.5" PointY="27.625" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.TripCheckpoints" Width="1.5" PointX="15" PointY="39.125" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.TripDelays" Width="1.5" PointX="15" PointY="43.125" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Trips" Width="1.5" PointX="12.75" PointY="37" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.TripStats" Width="1.5" PointX="15" PointY="46.25" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Users" Width="1.5" PointX="3" PointY="27.625" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.UserSuspensions" Width="1.5" PointX="7.5" PointY="23.75" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.Vehicle" Width="1.5" PointX="7.5" PointY="45.5" IsExpanded="true" />
-        <EntityTypeShape EntityType="CargoConnectModel.VehicleDocuments" Width="1.5" PointX="9.75" PointY="45.875" IsExpanded="true" />
+      <Diagram DiagramId="d8af38a89b50421ea7e27c96dada3080" Name="Diagram1">
+        <EntityTypeShape EntityType="CargoConnectModel.Admin" Width="1.5" PointX="5.25" PointY="15.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Bookings" Width="1.5" PointX="9.75" PointY="32.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.ChatAttachments" Width="1.5" PointX="14.25" PointY="21.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.ChatMessages" Width="1.5" PointX="12" PointY="21" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.ChatThreads" Width="1.5" PointX="9.75" PointY="20.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Checkpoints" Width="1.5" PointX="12.75" PointY="37.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Customer" Width="1.5" PointX="5.25" PointY="20.875" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Driver" Width="1.5" PointX="5.25" PointY="35.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.DriverDocuments" Width="1.5" PointX="7.5" PointY="36.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Notifications" Width="1.5" PointX="5.25" PointY="41.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.PackageAttributeMapping" Width="1.5" PointX="12" PointY="25.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.PackageAttributes" Width="1.5" PointX="9.75" PointY="17.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Packages" Width="1.5" PointX="9.75" PointY="24.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.RecipientDetails" Width="1.5" PointX="9.75" PointY="28.875" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Requests" Width="1.5" PointX="12.75" PointY="31.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Reviews" Width="1.5" PointX="15" PointY="34.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Roles" Width="1.5" PointX="0.75" PointY="27.25" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Routes" Width="1.5" PointX="7.5" PointY="39.875" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.RouteSchedule" Width="1.5" PointX="9.75" PointY="40.375" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Shipments" Width="1.5" PointX="7.5" PointY="25.5" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.TripCheckpoints" Width="1.5" PointX="15" PointY="40.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.TripDelays" Width="1.5" PointX="15" PointY="45" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Trips" Width="1.5" PointX="12.75" PointY="42.125" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.TripStats" Width="1.5" PointX="15" PointY="48.125" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Users" Width="1.5" PointX="3" PointY="25.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.UserSuspensions" Width="1.5" PointX="7.5" PointY="21.75" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.Vehicle" Width="1.5" PointX="7.5" PointY="43.625" IsExpanded="true" />
+        <EntityTypeShape EntityType="CargoConnectModel.VehicleDocuments" Width="1.5" PointX="9.75" PointY="43.875" IsExpanded="true" />
         <AssociationConnector Association="CargoConnectModel.FK__Admin__user_id__4222D4EF" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__ChatThrea__assig__245D67DE" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__UserSuspe__admin__4F7CD00D" ManuallyRouted="false" />
@@ -68,7 +68,6 @@
         <AssociationConnector Association="CargoConnectModel.FK__Users__role_id__3E52440B" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__Trips__route_id__07C12930" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK_RouteSchedule_Routes" ManuallyRouted="false" />
-        <AssociationConnector Association="CargoConnectModel.FK__Trips__shipment___04E4BC85" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__TripCheck__trip___123EB7A3" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__TripDelay__trip___17036CC0" ManuallyRouted="false" />
         <AssociationConnector Association="CargoConnectModel.FK__Trips__vehicle_r__06CD04F7" ManuallyRouted="false" />

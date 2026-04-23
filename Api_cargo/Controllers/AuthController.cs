@@ -14,7 +14,7 @@ namespace Api_cargo.Controllers
 {
         public class AuthController : ApiController
         {
-        CargoConnectEntities3 db = new CargoConnectEntities3();
+        CargoConnectEntities4 db = new CargoConnectEntities4();
 
             [HttpGet]
             [Route("api/auth/status")]

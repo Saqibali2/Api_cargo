@@ -24,7 +24,6 @@ namespace Api_cargo.Models
         }
     
         public int trip_id { get; set; }
-        public int shipment_id { get; set; }
         public int driver_id { get; set; }
         public string vehicle_reg_no { get; set; }
         public int route_id { get; set; }
@@ -36,7 +35,6 @@ namespace Api_cargo.Models
         public virtual Driver Driver { get; set; }
         public virtual ICollection<Reviews> Reviews { get; set; }
         public virtual Routes Routes { get; set; }
-        public virtual Shipments Shipments { get; set; }
         public virtual ICollection<TripCheckpoints> TripCheckpoints { get; set; }
         public virtual ICollection<TripDelays> TripDelays { get; set; }
         public virtual Vehicle Vehicle { get; set; }

@@ -10,7 +10,7 @@ namespace Api_cargo.Controllers
 {
     public class NotificationsController : ApiController
     {
-        private readonly CargoConnectEntities3 db = new CargoConnectEntities3();
+        private readonly CargoConnectEntities4 db = new CargoConnectEntities4();
 
         [HttpGet]
         [Route("api/notifications/status")]

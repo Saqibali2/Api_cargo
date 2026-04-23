@@ -18,6 +18,8 @@ namespace Api_cargo.Models
         public int shipment_id { get; set; }
         public int driver_id { get; set; }
         public string status { get; set; }
+        public Nullable<decimal> fare { get; set; }
+        public Nullable<int> route_id { get; set; }
     
         public virtual Driver Driver { get; set; }
         public virtual Shipments Shipments { get; set; }

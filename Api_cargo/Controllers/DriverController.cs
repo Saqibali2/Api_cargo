@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Transactions;
 using System.Web.Http;
 
 namespace Api_cargo.Controllers
 {
     public class DriverController : ApiController
     {
-        CargoConnectEntities3 db = new CargoConnectEntities3();
+        CargoConnectEntities4 db = new CargoConnectEntities4();
 
         [HttpGet]
         [Route("api/drivers/status")]
@@ -105,8 +106,8 @@ namespace Api_cargo.Controllers
         [Route("api/drivers/{id}/requests")]
         public IHttpActionResult GetDriverRequests(int id)
         {
-            var data = db.Requests
-                .Where(r => r.driver_id == id && r.status == "Pending") // 🔥 filter
+            var rawData = db.Requests
+                .Where(r => r.driver_id == id && r.status == "Pending")
                 .Join(db.Shipments,
                     r => r.shipment_id,
                     s => s.shipment_id,
@@ -114,20 +115,44 @@ namespace Api_cargo.Controllers
                     {
                         r.request_id,
                         r.shipment_id,
+                        r.fare,  
 
-                        Title = "Shipment #" + s.shipment_id,
-                        PickupCity = s.pickup_address,
-                        DestinationCity = s.delivery_address,
+                        s.pickup_address,
+                        s.delivery_address,
+                        s.total_weight,
+                        s.package_count,
+                        s.pickup_date,
 
-                        Weight = s.total_weight,
-                        PackageCount = s.package_count,
-
-                        PickupDate = s.pickup_date,
-
-                        CustomerName = s.sender_name,
-                        CustomerContact = s.sender_contact
+                        s.sender_name,
+                        s.sender_contact
                     })
                 .ToList();
+
+            var data = rawData.Select(x => new
+            {
+                x.request_id,
+                x.shipment_id,
+
+                Title = "Shipment #" + x.shipment_id,
+
+                PickupCity = x.pickup_address != null
+                    ? x.pickup_address.Split(',')[0]
+                    : "N/A",
+
+                DestinationCity = x.delivery_address != null
+                    ? x.delivery_address.Split(',')[0]
+                    : "N/A",
+
+                Weight = x.total_weight ?? 0,
+                PackageCount = x.package_count ?? 0,
+
+                PickupDate = x.pickup_date,
+
+                CustomerName = x.sender_name,
+                CustomerContact = x.sender_contact,
+
+                Fare = x.fare ?? 0  
+            }).ToList();
 
             return Ok(data);
         }
@@ -575,7 +600,7 @@ namespace Api_cargo.Controllers
         /*---------------------------*/
         [HttpPost]
         [Route("api/request/send")]
-        public IHttpActionResult SendRequest(int shipmentId, int driverId)
+        public IHttpActionResult SendRequest(int shipmentId, int driverId, int routeId)
         {
             var exists = db.Requests.FirstOrDefault(r =>
                 r.shipment_id == shipmentId &&
@@ -590,7 +615,8 @@ namespace Api_cargo.Controllers
             {
                 shipment_id = shipmentId,
                 driver_id = driverId,
-                status = "Pending"
+                status = "Pending",
+                 route_id = routeId,
             };
 
             db.Requests.Add(request);
@@ -598,34 +624,129 @@ namespace Api_cargo.Controllers
 
             return Ok("Request sent");
         }
-       
 
         [HttpPost]
-        [Route("api/request/accept")]
-        public IHttpActionResult AcceptRequest(int requestId, int driverId)
+        [Route("api/requests/decline")]
+        public IHttpActionResult DeclineRequest(int requestId)
         {
-            var req = db.Requests.FirstOrDefault(r => r.request_id == requestId);
+            var request = db.Requests.FirstOrDefault(r => r.request_id == requestId);
 
-            if (req == null)
-                return BadRequest("Request not found");
+            if (request == null)
+                return NotFound();
 
-            if (req.status == "Accepted")
-                return Ok("Already taken");
-
-            // 🔥 update request
-            req.status = "Accepted";
-
-            // 🔥 update shipment
-            var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == req.shipment_id);
-            if (shipment != null)
-            {
-                shipment.status = "Assigned";
-                // optional: shipment.driver_id = driverId;
-            }
+            request.status = "Declined";
 
             db.SaveChanges();
 
-            return Ok("Accepted");
+            return Ok(new { message = "Request declined" });
+        }
+
+
+
+[HttpPost]
+    [Route("api/drivers/accept-request")]
+    public IHttpActionResult AcceptRequest(int requestId)
+    {
+        using (var scope = new TransactionScope())
+        {
+            try
+            {
+      
+                var request = db.Requests.FirstOrDefault(r => r.request_id == requestId);
+
+                if (request == null)
+                    return BadRequest("Request not found");
+
+                if (request.status != "Pending")
+                    return BadRequest("Request already processed");
+
+                int shipmentId = request.shipment_id;
+                int driverId = request.driver_id;
+
+                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == shipmentId);
+
+                if (shipment == null)
+                    return BadRequest("Shipment not found");
+
+                request.status = "Accepted";
+
+                var otherRequests = db.Requests
+                    .Where(r => r.shipment_id == shipmentId && r.request_id != requestId)
+                    .ToList();
+
+                foreach (var r in otherRequests)
+                {
+                    r.status = "Rejected";
+                }
+
+                shipment.status = "Assigned";
+
+         
+                var vehicleRegNo = db.Vehicle
+                    .Where(v => v.driver_id == driverId)
+                    .Select(v => v.vehicle_reg_no)
+                    .FirstOrDefault();
+
+         
+                if (vehicleRegNo == null)
+                    return BadRequest("Driver vehicle not found");
+
+                var routeId = db.Routes
+                    .Where(rt => rt.driver_id == driverId)
+                    .Select(rt => rt.route_id)
+                    .FirstOrDefault();
+
+         
+                if (routeId == 0)
+                    return BadRequest("Driver route not found");
+
+           
+                var trip = new Trips
+                {
+                    driver_id = driverId,
+                    vehicle_reg_no = vehicleRegNo,
+                    route_id = routeId,
+                    start_time = null,
+                    end_time = null,
+                    status = "Scheduled"
+                };
+
+                db.Trips.Add(trip);
+                db.SaveChanges();
+
+ 
+                var booking = new Bookings
+                {
+                    shipment_id = shipmentId,
+                    customer_id = shipment.customer_id,
+                    route_id = routeId,
+                    trip_id = trip.trip_id,
+                    status = "Assigned",
+                    amount = request.fare ?? 0,
+                    booking_type = shipment.strict == true ? "Private" : "Shared",
+                    pickup_date = shipment.pickup_date,
+                    created_at = DateTime.Now
+                };
+
+                db.Bookings.Add(booking);
+
+                db.SaveChanges();
+
+     
+                scope.Complete();
+
+                return Ok(new
+                {
+                    message = "Request accepted successfully",
+                    tripId = trip.trip_id,
+                    bookingId = booking.booking_id
+                });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
         }
     }
+}
 }

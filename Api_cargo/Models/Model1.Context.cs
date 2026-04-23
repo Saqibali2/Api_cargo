@@ -13,10 +13,10 @@ namespace Api_cargo.Models
     using System.Data.Entity;
     using System.Data.Entity.Infrastructure;
     
-    public partial class CargoConnectEntities3 : DbContext
+    public partial class CargoConnectEntities4 : DbContext
     {
-        public CargoConnectEntities3()
-            : base("name=CargoConnectEntities3")
+        public CargoConnectEntities4()
+            : base("name=CargoConnectEntities4")
         {
         }
     

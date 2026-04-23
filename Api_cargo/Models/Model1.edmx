@@ -189,6 +189,8 @@
           <Property Name="shipment_id" Type="int" Nullable="false" />
           <Property Name="driver_id" Type="int" Nullable="false" />
           <Property Name="status" Type="nvarchar" MaxLength="50" />
+          <Property Name="fare" Type="decimal" Precision="10" Scale="2" />
+          <Property Name="route_id" Type="int" />
         </EntityType>
         <EntityType Name="Reviews">
           <Key>
@@ -274,7 +276,6 @@
             <PropertyRef Name="trip_id" />
           </Key>
           <Property Name="trip_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="shipment_id" Type="int" Nullable="false" />
           <Property Name="driver_id" Type="int" Nullable="false" />
           <Property Name="vehicle_reg_no" Type="nvarchar" MaxLength="50" Nullable="false" />
           <Property Name="route_id" Type="int" Nullable="false" />
@@ -714,18 +715,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__Trips__shipment___04E4BC85">
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="1" />
-          <End Role="Trips" Type="Self.Trips" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Shipments">
-              <PropertyRef Name="shipment_id" />
-            </Principal>
-            <Dependent Role="Trips">
-              <PropertyRef Name="shipment_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__Trips__vehicle_r__06CD04F7">
           <End Role="Vehicle" Type="Self.Vehicle" Multiplicity="1" />
           <End Role="Trips" Type="Self.Trips" Multiplicity="*" />
@@ -999,10 +988,6 @@
             <End Role="Routes" EntitySet="Routes" />
             <End Role="Trips" EntitySet="Trips" />
           </AssociationSet>
-          <AssociationSet Name="FK__Trips__shipment___04E4BC85" Association="Self.FK__Trips__shipment___04E4BC85">
-            <End Role="Shipments" EntitySet="Shipments" />
-            <End Role="Trips" EntitySet="Trips" />
-          </AssociationSet>
           <AssociationSet Name="FK__Trips__vehicle_r__06CD04F7" Association="Self.FK__Trips__vehicle_r__06CD04F7">
             <End Role="Vehicle" EntitySet="Vehicle" />
             <End Role="Trips" EntitySet="Trips" />
@@ -1268,8 +1253,10 @@
           <Property Name="shipment_id" Type="Int32" Nullable="false" />
           <Property Name="driver_id" Type="Int32" Nullable="false" />
           <Property Name="status" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
+          <Property Name="fare" Type="Decimal" Precision="10" Scale="2" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Requests__driver__797309D9" FromRole="Requests" ToRole="Driver" />
           <NavigationProperty Name="Shipments" Relationship="Self.FK__Requests__shipme__787EE5A0" FromRole="Requests" ToRole="Shipments" />
+          <Property Name="route_id" Type="Int32" />
         </EntityType>
         <EntityType Name="Reviews">
           <Key>
@@ -1302,12 +1289,12 @@
           <Property Name="driver_id" Type="Int32" Nullable="false" />
           <Property Name="is_active" Type="Boolean" />
           <Property Name="is_next_route" Type="Boolean" />
+          <Property Name="base_fare" Type="Decimal" Precision="18" Scale="2" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__route___0E6E26BF" FromRole="Routes" ToRole="Bookings" />
           <NavigationProperty Name="Checkpoints" Relationship="Self.FK_Checkpoints_Routes" FromRole="Routes" ToRole="Checkpoints" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Routes__driver_i__5EBF139D" FromRole="Routes" ToRole="Driver" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__route_id__07C12930" FromRole="Routes" ToRole="Trips" />
           <NavigationProperty Name="RouteSchedule" Relationship="Self.FK_RouteSchedule_Routes" FromRole="Routes" ToRole="RouteSchedule" />
-          <Property Name="base_fare" Type="Decimal" Precision="18" Scale="2" />
         </EntityType>
         <EntityType Name="RouteSchedule">
           <Key>
@@ -1337,14 +1324,13 @@
           <Property Name="delivery_lat" Type="Double" />
           <Property Name="delivery_long" Type="Double" />
           <Property Name="delivery_address" Type="String" MaxLength="500" FixedLength="false" Unicode="true" />
+          <Property Name="pickup_date" Type="DateTime" Precision="3" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__shipme__0C85DE4D" FromRole="Shipments" ToRole="Bookings" />
           <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__shipm__22751F6C" FromRole="Shipments" ToRole="ChatThreads" />
           <NavigationProperty Name="Customer" Relationship="Self.FK__Shipments__custo__72C60C4A" FromRole="Shipments" ToRole="Customer" />
           <NavigationProperty Name="Packages" Relationship="Self.FK__Packages__shipme__7C4F7684" FromRole="Shipments" ToRole="Packages" />
           <NavigationProperty Name="RecipientDetails" Relationship="Self.FK__Recipient__shipm__75A278F5" FromRole="Shipments" ToRole="RecipientDetails" />
           <NavigationProperty Name="Requests" Relationship="Self.FK__Requests__shipme__787EE5A0" FromRole="Shipments" ToRole="Requests" />
-          <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__shipment___04E4BC85" FromRole="Shipments" ToRole="Trips" />
-          <Property Name="pickup_date" Type="DateTime" Precision="3" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -1375,7 +1361,6 @@
             <PropertyRef Name="trip_id" />
           </Key>
           <Property Name="trip_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="shipment_id" Type="Int32" Nullable="false" />
           <Property Name="driver_id" Type="Int32" Nullable="false" />
           <Property Name="vehicle_reg_no" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
           <Property Name="route_id" Type="Int32" Nullable="false" />
@@ -1386,7 +1371,6 @@
           <NavigationProperty Name="Driver" Relationship="Self.FK__Trips__driver_id__05D8E0BE" FromRole="Trips" ToRole="Driver" />
           <NavigationProperty Name="Reviews" Relationship="Self.FK__Reviews__trip_id__1DB06A4F" FromRole="Trips" ToRole="Reviews" />
           <NavigationProperty Name="Routes" Relationship="Self.FK__Trips__route_id__07C12930" FromRole="Trips" ToRole="Routes" />
-          <NavigationProperty Name="Shipments" Relationship="Self.FK__Trips__shipment___04E4BC85" FromRole="Trips" ToRole="Shipments" />
           <NavigationProperty Name="TripCheckpoints" Relationship="Self.FK__TripCheck__trip___123EB7A3" FromRole="Trips" ToRole="TripCheckpoints" />
           <NavigationProperty Name="TripDelays" Relationship="Self.FK__TripDelay__trip___17036CC0" FromRole="Trips" ToRole="TripDelays" />
           <NavigationProperty Name="Vehicle" Relationship="Self.FK__Trips__vehicle_r__06CD04F7" FromRole="Trips" ToRole="Vehicle" />
@@ -1889,18 +1873,6 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__Trips__shipment___04E4BC85">
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="1" />
-          <End Role="Trips" Type="Self.Trips" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Shipments">
-              <PropertyRef Name="shipment_id" />
-            </Principal>
-            <Dependent Role="Trips">
-              <PropertyRef Name="shipment_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
         <Association Name="FK__TripCheck__trip___123EB7A3">
           <End Role="Trips" Type="Self.Trips" Multiplicity="1" />
           <End Role="TripCheckpoints" Type="Self.TripCheckpoints" Multiplicity="*" />
@@ -1973,7 +1945,7 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <EntityContainer Name="CargoConnectEntities3" annotation:LazyLoadingEnabled="true">
+        <EntityContainer Name="CargoConnectEntities4" annotation:LazyLoadingEnabled="true">
           <EntitySet Name="Admin" EntityType="Self.Admin" />
           <EntitySet Name="Bookings" EntityType="Self.Bookings" />
           <EntitySet Name="ChatAttachments" EntityType="Self.ChatAttachments" />
@@ -2142,10 +2114,6 @@
             <End Role="Routes" EntitySet="Routes" />
             <End Role="RouteSchedule" EntitySet="RouteSchedule" />
           </AssociationSet>
-          <AssociationSet Name="FK__Trips__shipment___04E4BC85" Association="Self.FK__Trips__shipment___04E4BC85">
-            <End Role="Shipments" EntitySet="Shipments" />
-            <End Role="Trips" EntitySet="Trips" />
-          </AssociationSet>
           <AssociationSet Name="FK__TripCheck__trip___123EB7A3" Association="Self.FK__TripCheck__trip___123EB7A3">
             <End Role="Trips" EntitySet="Trips" />
             <End Role="TripCheckpoints" EntitySet="TripCheckpoints" />
@@ -2176,7 +2144,7 @@
     <!-- C-S mapping content -->
     <edmx:Mappings>
       <Mapping Space="C-S" xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs">
-        <EntityContainerMapping StorageEntityContainer="CargoConnectModelStoreContainer" CdmEntityContainer="CargoConnectEntities3">
+        <EntityContainerMapping StorageEntityContainer="CargoConnectModelStoreContainer" CdmEntityContainer="CargoConnectEntities4">
           <EntitySetMapping Name="Admin">
             <EntityTypeMapping TypeName="CargoConnectModel.Admin">
               <MappingFragment StoreEntitySet="Admin">
@@ -2370,10 +2338,12 @@
           <EntitySetMapping Name="Requests">
             <EntityTypeMapping TypeName="CargoConnectModel.Requests">
               <MappingFragment StoreEntitySet="Requests">
+                <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="request_id" ColumnName="request_id" />
                 <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
                 <ScalarProperty Name="status" ColumnName="status" />
+                <ScalarProperty Name="fare" ColumnName="fare" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2401,11 +2371,11 @@
           <EntitySetMapping Name="Routes">
             <EntityTypeMapping TypeName="CargoConnectModel.Routes">
               <MappingFragment StoreEntitySet="Routes">
-                <ScalarProperty Name="base_fare" ColumnName="base_fare" />
                 <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
                 <ScalarProperty Name="is_active" ColumnName="is_active" />
                 <ScalarProperty Name="is_next_route" ColumnName="is_next_route" />
+                <ScalarProperty Name="base_fare" ColumnName="base_fare" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2422,7 +2392,6 @@
           <EntitySetMapping Name="Shipments">
             <EntityTypeMapping TypeName="CargoConnectModel.Shipments">
               <MappingFragment StoreEntitySet="Shipments">
-                <ScalarProperty Name="pickup_date" ColumnName="pickup_date" />
                 <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="sender_name" ColumnName="sender_name" />
                 <ScalarProperty Name="sender_contact" ColumnName="sender_contact" />
@@ -2437,6 +2406,7 @@
                 <ScalarProperty Name="delivery_lat" ColumnName="delivery_lat" />
                 <ScalarProperty Name="delivery_long" ColumnName="delivery_long" />
                 <ScalarProperty Name="delivery_address" ColumnName="delivery_address" />
+                <ScalarProperty Name="pickup_date" ColumnName="pickup_date" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2467,7 +2437,6 @@
             <EntityTypeMapping TypeName="CargoConnectModel.Trips">
               <MappingFragment StoreEntitySet="Trips">
                 <ScalarProperty Name="trip_id" ColumnName="trip_id" />
-                <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
                 <ScalarProperty Name="vehicle_reg_no" ColumnName="vehicle_reg_no" />
                 <ScalarProperty Name="route_id" ColumnName="route_id" />

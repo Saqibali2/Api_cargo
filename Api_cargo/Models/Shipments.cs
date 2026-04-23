@@ -21,7 +21,6 @@ namespace Api_cargo.Models
             this.Packages = new HashSet<Packages>();
             this.RecipientDetails = new HashSet<RecipientDetails>();
             this.Requests = new HashSet<Requests>();
-            this.Trips = new HashSet<Trips>();
         }
     
         public int shipment_id { get; set; }
@@ -46,6 +45,5 @@ namespace Api_cargo.Models
         public virtual ICollection<Packages> Packages { get; set; }
         public virtual ICollection<RecipientDetails> RecipientDetails { get; set; }
         public virtual ICollection<Requests> Requests { get; set; }
-        public virtual ICollection<Trips> Trips { get; set; }
     }
 }

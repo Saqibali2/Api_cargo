@@ -8,7 +8,7 @@ namespace Api_cargo.Controllers
 {
     public class ShipmentController : ApiController
     {
-        CargoConnectEntities3 db = new CargoConnectEntities3();
+        CargoConnectEntities4 db = new CargoConnectEntities4();
 
         [Route("api/shipments/draft/{customerId}")]
         [HttpPost]
