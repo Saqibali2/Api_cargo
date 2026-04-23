@@ -197,6 +197,7 @@
     <Compile Include="Models\RouteSchedule.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>
+    <Compile Include="Models\ShipmentDto.cs" />
     <Compile Include="Models\Shipments.cs">
       <DependentUpon>Model1.tt</DependentUpon>
     </Compile>

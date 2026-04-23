@@ -142,119 +142,284 @@ namespace Api_cargo.Controllers
                     totalRequests = requests.Count,
                     shipmentData = shipments
                 });
-            }
+        }
 
-            //******************************************************************//
-            [HttpPost]
-            [Route("api/drivers/find")]
-            public IHttpActionResult GetDriversByAvailability(AvailabilityDto request)
+        ////******************************************************************//
+        //[HttpPost]
+        //[Route("api/drivers/find")]
+        //public IHttpActionResult GetDriversByAvailability(AvailabilityDto request)
+        //{
+        //    try
+        //    {
+        //        const double MaxDistanceKm = 20.0;
+
+        //        var activeRouteIds = db.RouteSchedule
+        //            .ToList()
+        //            .Where(rs =>
+        //            {
+        //                if (string.IsNullOrEmpty(rs.departureDate) || string.IsNullOrEmpty(rs.arrivalDate))
+        //                    return false;
+
+        //                DateTime dep, arr;
+        //                if (DateTime.TryParse(rs.departureDate.Trim(), out dep) &&
+        //                    DateTime.TryParse(rs.arrivalDate.Trim(), out arr))
+        //                {
+        //                    return request.requestedDate.Date >= dep.Date && request.requestedDate.Date <= arr.Date;
+        //                }
+        //                return false;
+        //            })
+        //            .Select(rs => rs.route_id)
+        //            .Distinct()
+        //            .ToList();
+
+        //        if (!activeRouteIds.Any())
+        //            return Ok(new List<object>());
+
+        //        var checkpointsByRoute = db.Checkpoints
+        //            .Where(c => c.route_id.HasValue &&
+        //    activeRouteIds.Contains(c.route_id.Value))
+        //        .ToList()
+        //        .GroupBy(c => c.route_id)
+        //        .ToList();
+
+        //    var matchingDriverIds = new HashSet<int>();
+
+        //        foreach (var routeGroup in checkpointsByRoute)
+        //        {
+        //            var checkpoints = routeGroup.OrderBy(c => c.sequence_no).ToList();
+        //            bool pMatch = false;
+        //            bool dMatch = false;
+
+        //            foreach (var cp in checkpoints)
+        //            {
+        //                if (cp.latitude.HasValue && cp.longitude.HasValue)
+        //                {
+        //                    double lat = cp.latitude.Value;
+        //                    double lon = cp.longitude.Value;
+
+        //                    if (!pMatch && CalculateDistance(request.pickupLat, request.pickupLong, lat, lon) <= MaxDistanceKm)
+        //                        pMatch = true;
+
+        //                    if (!dMatch && CalculateDistance(request.destLat, request.destLong, lat, lon) <= MaxDistanceKm)
+        //                        dMatch = true;
+        //                }
+        //            }
+
+        //            if (pMatch && dMatch)
+        //            {
+        //                var route = db.Routes.FirstOrDefault(r => r.route_id == routeGroup.Key);
+        //                if (route != null)
+        //                    matchingDriverIds.Add(route.driver_id);
+        //            }
+        //        }
+
+        //        var drivers = db.Driver
+        //            .Where(d => matchingDriverIds.Contains(d.driver_id) && d.is_available == true)
+        //            .Select(d => new
+        //            {
+        //                d.driver_id,
+        //                d.user_id,
+        //                d.first_name,
+        //                d.last_name,
+        //                d.CNIC,
+        //                d.contact_no,
+        //                d.licence_no,
+        //                d.street_no,
+        //                d.city,
+        //                d.profile_image_url,
+        //                d.is_available
+        //            })
+        //            .ToList();
+
+        //        return Ok(drivers);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Content(System.Net.HttpStatusCode.InternalServerError, ex.Message);
+        //    }
+        //}
+        [HttpPost]
+        [Route("api/drivers/find")]
+        public IHttpActionResult GetDriversByAvailability(int shipmentId)
+        {
+            try
             {
-                try
+                var request = BuildRequestFromShipment(shipmentId);
+
+                var routes = FilterRoutesByDate(request);
+
+                var matchedRoutes = MatchRoutesWithCheckpoints(routes, request);
+
+                var drivers = GetDriversFromRoutes(matchedRoutes);
+
+                var availableDrivers = ApplyCapacityCheck(drivers, request);
+
+                return Ok(availableDrivers);
+            }
+            catch (Exception ex)
+            {
+                return Content(System.Net.HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+        private AvailabilityDto BuildRequestFromShipment(int shipmentId)
+        {
+            var shipment = db.Shipments
+                .FirstOrDefault(s => s.shipment_id == shipmentId);
+
+            if (shipment == null)
+                throw new Exception("Shipment not found");
+
+            if (shipment.pickup_lat == null || shipment.delivery_lat == null)
+                throw new Exception("Shipment location missing");
+
+            return new AvailabilityDto
+            {
+                shipmentId = shipmentId,
+                pickupLat = shipment.pickup_lat.Value,
+                pickupLong = shipment.pickup_long.Value,
+                destLat = shipment.delivery_lat.Value,
+                destLong = shipment.delivery_long.Value,
+                requestedDate = DateTime.Now,
+                isStrict = false
+            };
+        }
+        private List<RouteSchedule> FilterRoutesByDate(AvailabilityDto request)
+        {
+            return db.RouteSchedule
+                .ToList()
+                .Where(rs =>
                 {
-                    const double MaxDistanceKm = 20.0;
+                    if (rs.departureDate == null || rs.arrivalDate == null)
+                        return false;
 
-                    var activeRouteIds = db.RouteSchedule
-                        .ToList()
-                        .Where(rs =>
-                        {
-                            if (string.IsNullOrEmpty(rs.departureDate) || string.IsNullOrEmpty(rs.arrivalDate))
-                                return false;
+                    DateTime dep, arr;
 
-                            DateTime dep, arr;
-                            if (DateTime.TryParse(rs.departureDate.Trim(), out dep) &&
-                                DateTime.TryParse(rs.arrivalDate.Trim(), out arr))
-                            {
-                                return request.requestedDate.Date >= dep.Date && request.requestedDate.Date <= arr.Date;
-                            }
-                            return false;
-                        })
-                        .Select(rs => rs.route_id)
-                        .Distinct()
-                        .ToList();
-
-                    if (!activeRouteIds.Any())
-                        return Ok(new List<object>());
-
-                    var checkpointsByRoute = db.Checkpoints
-                        .Where(c => c.route_id.HasValue &&
-                activeRouteIds.Contains(c.route_id.Value))
-                    .ToList()
-                    .GroupBy(c => c.route_id)
-                    .ToList();
-
-                var matchingDriverIds = new HashSet<int>();
-
-                    foreach (var routeGroup in checkpointsByRoute)
+                    if (!DateTime.TryParse(rs.departureDate, out dep) ||
+                        !DateTime.TryParse(rs.arrivalDate, out arr))
                     {
-                        var checkpoints = routeGroup.OrderBy(c => c.sequence_no).ToList();
-                        bool pMatch = false;
-                        bool dMatch = false;
-
-                        foreach (var cp in checkpoints)
-                        {
-                            if (cp.latitude.HasValue && cp.longitude.HasValue)
-                            {
-                                double lat = cp.latitude.Value;
-                                double lon = cp.longitude.Value;
-
-                                if (!pMatch && CalculateDistance(request.pickupLat, request.pickupLong, lat, lon) <= MaxDistanceKm)
-                                    pMatch = true;
-
-                                if (!dMatch && CalculateDistance(request.destLat, request.destLong, lat, lon) <= MaxDistanceKm)
-                                    dMatch = true;
-                            }
-                        }
-
-                        if (pMatch && dMatch)
-                        {
-                            var route = db.Routes.FirstOrDefault(r => r.route_id == routeGroup.Key);
-                            if (route != null)
-                                matchingDriverIds.Add(route.driver_id);
-                        }
+                        return false;
                     }
 
-                    var drivers = db.Driver
-                        .Where(d => matchingDriverIds.Contains(d.driver_id) && d.is_available == true)
-                        .Select(d => new
-                        {
-                            d.driver_id,
-                            d.user_id,
-                            d.first_name,
-                            d.last_name,
-                            d.CNIC,
-                            d.contact_no,
-                            d.licence_no,
-                            d.street_no,
-                            d.city,
-                            d.profile_image_url,
-                            d.is_available
-                        })
-                        .ToList();
+                    if (request.isStrict)
+                        return request.requestedDate.Date == dep.Date;
 
-                    return Ok(drivers);
-                }
-                catch (Exception ex)
-                {
-                    return Content(System.Net.HttpStatusCode.InternalServerError, ex.Message);
-                }
-            }
+                    return request.requestedDate >= dep && request.requestedDate <= arr;
+                })
+                .ToList();
+        }
+        private List<int> MatchRoutesWithCheckpoints(List<RouteSchedule> routes, AvailabilityDto request)
+        {
+            const double MaxDistanceKm = 20.0;
 
-            private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+            var routeIds = routes.Select(r => r.route_id).ToList();
+
+            var checkpointsByRoute = db.Checkpoints
+                .Where(c => c.route_id.HasValue && routeIds.Contains(c.route_id.Value))
+                .ToList()
+                .GroupBy(c => c.route_id.Value)
+                .ToList();
+
+            var matchedRouteIds = new List<int>();
+
+            foreach (var group in checkpointsByRoute)
             {
-                const double R = 6371;
-                var dLat = ToRadians(lat2 - lat1);
-                var dLon = ToRadians(lon2 - lon1);
-                var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                        Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
-                        Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-                var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-                return R * c;
+                var checkpoints = group.OrderBy(c => c.sequence_no).ToList();
+
+                int pickupIndex = -1;
+                int dropIndex = -1;
+
+                for (int i = 0; i < checkpoints.Count; i++)
+                {
+                    var cp = checkpoints[i];
+
+                    if (cp.latitude.HasValue && cp.longitude.HasValue)
+                    {
+                        double lat = cp.latitude.Value;
+                        double lon = cp.longitude.Value;
+
+                        if (pickupIndex == -1 &&
+                            CalculateDistance(request.pickupLat, request.pickupLong, lat, lon) <= MaxDistanceKm)
+                        {
+                            pickupIndex = i;
+                        }
+
+                        if (dropIndex == -1 &&
+                            CalculateDistance(request.destLat, request.destLong, lat, lon) <= MaxDistanceKm)
+                        {
+                            dropIndex = i;
+                        }
+                    }
+                }
+
+                if (pickupIndex != -1 && dropIndex != -1 && pickupIndex < dropIndex)
+                {
+                    matchedRouteIds.Add(group.Key);
+                }
             }
+
+            return matchedRouteIds;
+        }
+        private List<Driver> GetDriversFromRoutes(List<int> routeIds)
+        {
+            var driverIds = db.Routes
+                .Where(r => routeIds.Contains(r.route_id))
+                .Select(r => r.driver_id)
+                .Distinct()
+                .ToList();
+
+            return db.Driver
+                .Where(d => driverIds.Contains(d.driver_id) && d.is_available == true)
+                .ToList();
+        }
+        private List<object> ApplyCapacityCheck(List<Driver> drivers, AvailabilityDto request)
+        {
+            // TEMP: return all drivers (no capacity logic yet)
+
+            return drivers.Select(d => new
+            {
+                d.driver_id,
+                d.first_name,
+                d.last_name,
+                d.contact_no,
+                d.city
+            }).ToList<object>();
+        }
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            var R = 6371; // km
+            var dLat = ToRadians(lat2 - lat1);
+            var dLon = ToRadians(lon2 - lon1);
+
+            var a =
+                Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return R * c;
+        }
+
+        private double ToRadians(double angle)
+        {
+            return angle * Math.PI / 180;
+        }
+        //private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        //    {
+        //        const double R = 6371;
+        //        var dLat = ToRadians(lat2 - lat1);
+        //        var dLon = ToRadians(lon2 - lon1);
+        //        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+        //                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+        //                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        //        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        //        return R * c;
+        //    }
 
 
        
 
-        private double ToRadians(double deg) => deg * (Math.PI / 180);
+        //private double ToRadians(double deg) => deg * (Math.PI / 180);
 
             /*
              [HttpPut]

@@ -252,6 +252,27 @@ namespace Api_cargo.Controllers
 
             return Ok(shipments);
         }
+        [HttpGet]
+        [Route("api/shipments/pending/customer/{customerId}")]
+        public IHttpActionResult GetCustomerPendingShipments(int customerId)
+        {
+            var shipments = db.Shipments
+                .Where(s => s.customer_id == customerId && s.status == "Pending")
+                .Select(s => new ShipmentDto
+                {
+                    shipment_id = s.shipment_id,
+                    pickup_address = s.pickup_address,
+                    delivery_address = s.delivery_address,
+                    status = s.status,
+                    sender_name = s.sender_name,
+                    sender_contact = s.sender_contact,
+                    total_weight = s.total_weight
+                })
+                .ToList();
+
+            return Ok(shipments);
+        }
+
     }
 
     public class PackageWithMapping
@@ -259,4 +280,6 @@ namespace Api_cargo.Controllers
         public Packages Package { get; set; }
         public List<int> AttributeIds { get; set; }
     }
+
+
 }
