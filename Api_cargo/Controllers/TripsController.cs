@@ -112,35 +112,47 @@ namespace Api_cargo.Controllers
         public IHttpActionResult GetCustomerBookings(int customerId)
         {
             var bookings = (
-                from b in db.Bookings
-                join r in db.Routes on b.route_id equals r.route_id
+     from b in db.Bookings
 
-                let fromCp = db.Checkpoints
-                    .Where(c => c.route_id == r.route_id)
-                    .OrderBy(c => c.sequence_no)
-                    .FirstOrDefault()
+     join r in db.Routes
+         on b.route_id equals r.route_id into routeGroup
+     from r in routeGroup.DefaultIfEmpty()
 
-                let toCp = db.Checkpoints
-                    .Where(c => c.route_id == r.route_id)
-                    .OrderByDescending(c => c.sequence_no)
-                    .FirstOrDefault()
+     let fromCp = db.Checkpoints
+         .Where(c => r != null && c.route_id == r.route_id)
+         .OrderBy(c => c.sequence_no)
+         .FirstOrDefault()
 
-                where b.customer_id == customerId
+     let toCp = db.Checkpoints
+         .Where(c => r != null && c.route_id == r.route_id)
+         .OrderByDescending(c => c.sequence_no)
+         .FirstOrDefault()
 
-                select new
-                {
-                    id = b.booking_id,              
-                    status = b.status,              
-                    amount = b.amount,              
-                    bookingType = b.booking_type,   
-                    fromCheckpoint = fromCp != null ? fromCp.name : null,
-                    toCheckpoint = toCp != null ? toCp.name : null,    
-                }
-            ).ToList();
+     where b.customer_id == customerId
+
+     select new
+     {
+         id = b.booking_id,
+         status = b.status,
+         amount = b.amount,
+         bookingType = b.booking_type,
+         fromCheckpoint = fromCp != null ? fromCp.name : null,
+         toCheckpoint = toCp != null ? toCp.name : null,
+     }
+ ).ToList();
 
             return Ok(bookings);
         }
+        [HttpGet]
+        [Route("api/customers/{customerId}/pending-shipments-count")]
+        public IHttpActionResult GetPendingShipmentsCount(int customerId)
+        {
+            var count = db.Shipments
+                .Where(s => s.customer_id == customerId && s.status == "Pending")
+                .Count();
 
+            return Ok(count);
+        }
         [HttpPut]
             [Route("api/bookings/{id}/cancel")]
             public IHttpActionResult CancelBooking(int id, string reason)

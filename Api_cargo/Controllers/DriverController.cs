@@ -316,23 +316,27 @@ namespace Api_cargo.Controllers
                 .ToList()
                 .Where(rs =>
                 {
-                    if (rs.departureDate == null || rs.arrivalDate == null)
+                    if (rs.departureDate == null)
                         return false;
 
-                    DateTime dep, arr;
-
-                    if (!DateTime.TryParse(rs.departureDate, out dep) ||
-                        !DateTime.TryParse(rs.arrivalDate, out arr))
-                    {
+                    DateTime dep;
+                    if (!DateTime.TryParse(rs.departureDate, out dep))
                         return false;
-                    }
+
+                    var routeDate = dep.Date;
+                    var shipmentDate = request.requestedDate.Date;
 
                     if (request.isStrict)
-                        return request.requestedDate.Date == dep.Date;
+                    {
+                        return routeDate == shipmentDate;
+                    }
+                    else
+                    {
+                        return routeDate >= shipmentDate.AddDays(-2)
+                            && routeDate <= shipmentDate.AddDays(2);
+                    }
 
-                    return request.requestedDate >= dep && request.requestedDate <= arr;
-                })
-                .ToList();
+                }).ToList();
         }
         private List<int> MatchRoutesWithCheckpoints(List<RouteSchedule> routes, AvailabilityDto request)
         {

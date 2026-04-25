@@ -18,53 +18,61 @@ namespace Api_cargo.Controllers
         {
             return Ok("SUCCESS: Reviews connection successful.");
         }
-
-        [HttpPost]
-        [Route("api/reviews/add")]
-        public IHttpActionResult AddReview(Reviews review)
-        {
-            if (review == null)
-                return BadRequest("ERROR: Invalid review data.");
-
-            db.Reviews.Add(review);
-            db.SaveChanges();
-
-            return Ok("SUCCESS: Review added successfully.");
-        }
-
         [HttpGet]
-        [Route("api/reviews/findbyid/{targetUserId}")]
-        public IHttpActionResult GetReviewsByUser(int targetUserId)
+        [Route("api/reviews/average")]
+        public IHttpActionResult GetAverageRating(int userId)
         {
-            var reviews = db.Reviews.Where(r => r.target_user_id == targetUserId).Select(s => new
-            {
-                s.trip_id,
-                s.reviewer_user_id,
-                s.target_user_id,
-                s.rating,
-                s.comments,
-                s.created_at
-            }
-            );
-            return Ok(reviews);
-        }
 
-        [HttpGet]
-        [Route("api/reivews/findbytrip/{tripId}")]
-        public IHttpActionResult GetReviewsByTrip(int tripId)
-        {
-            var reviews = db.Reviews.Where(t => t.trip_id == tripId).ToList();
-            return Ok(reviews);
-        }
-
-        [HttpGet]
-        [Route("api/reviews/findbyuser/{id}")]
-        public IHttpActionResult GetReviewsByUserId(int id)
-        {
-            var reviews = db.Reviews.Where(r => r.reviewer_user_id == id).ToList();
+            var reviews = db.Reviews
+                .Where(r => r.target_user_id == userId);
 
             if (!reviews.Any())
-                return Ok("No reviews given");
+            {
+                return Ok(new
+                {
+                    user_id = userId,
+                    average_rating = 0,
+                    total_reviews = 0
+                });
+            }
+
+            var result = new
+            {
+                user_id = userId,
+                average_rating = Math.Round(reviews.Average(r => (double?)r.rating) ?? 0, 1),
+                total_reviews = reviews.Count()
+            };
+
+            return Ok(result);
+        }
+        [HttpGet]
+        [Route("api/reviews/user")]
+        public IHttpActionResult GetUserReviews(int userId)
+        {
+            var reviews = (from r in db.Reviews
+                           join ru in db.Users on r.reviewer_user_id equals ru.user_id
+                           join tu in db.Users on r.target_user_id equals tu.user_id
+                           where r.reviewer_user_id == userId || r.target_user_id == userId
+                           select new
+                           {
+                               id = r.review_id,
+                               trip_id = r.trip_id,
+                               rating = r.rating,
+                               comment = r.comments,
+                               created_at = r.created_at,
+
+                               type = r.target_user_id == userId ? "received" : "given",
+
+                               reviewer_name = ru.email,
+                               reviewer_role = ru.role_id == 3 ? "driver" :
+                                               ru.role_id == 2 ? "customer" : "admin",
+
+                               target_name = tu.email,
+                               target_role = tu.role_id == 3 ? "driver" :
+                                             tu.role_id == 2 ? "customer" : "admin"
+                           })
+                           .OrderByDescending(r => r.created_at)
+                           .ToList();
 
             return Ok(reviews);
         }

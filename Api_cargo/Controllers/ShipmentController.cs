@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Transactions;
 using System.Web.Http;
 
 namespace Api_cargo.Controllers
@@ -58,7 +59,7 @@ namespace Api_cargo.Controllers
             db.Packages.Add(request.Package);
             db.SaveChanges();
 
-            if (request.AttributeIds != null)
+            if (request.AttributeIds != null && request.AttributeIds.Any())
             {
                 foreach (var attributeId in request.AttributeIds)
                 {
@@ -84,7 +85,114 @@ namespace Api_cargo.Controllers
                 shipmentId = shipment.shipment_id
             });
         }
+        [HttpGet]
+        [Route("api/PackageDetails/{packageId}")]
+        public IHttpActionResult GetPackageDetails(int packageId)
+        {
+            var package = db.Packages
+                .Where(p => p.package_id == packageId)
+                .Select(p => new
+                {
+                    p.package_id,
+                    p.shipment_id,
+                    p.name,
+                    p.weight,
+                    p.quantity,
+                    p.length,
+                    p.width,
+                    p.height
+                })
+                .FirstOrDefault();
 
+            if (package == null)
+                return NotFound();
+
+            var attributes = db.PackageAttributeMapping
+                .Where(x => x.package_id == packageId)
+                .Select(x => x.attribute_id)
+                .ToList();
+
+            return Ok(new
+            {
+                package.package_id,
+                package.shipment_id,
+                package.name,
+                package.weight,
+                package.quantity,
+                package.length,
+                package.width,
+                package.height,
+                attributes = attributes
+            });
+        }
+        [HttpPut]
+        [Route("api/packages/update")]
+        public IHttpActionResult UpdatePackage(PackageWithMapping request)
+        {
+            if (request?.Package == null)
+                return BadRequest("Invalid package data");
+
+            var existing = db.Packages
+                .FirstOrDefault(p => p.package_id == request.Package.package_id);
+
+            if (existing == null)
+                return NotFound();
+
+            using (var scope = new TransactionScope())
+            {
+                existing.name = request.Package.name;
+                existing.weight = request.Package.weight;
+                existing.quantity = request.Package.quantity;
+                existing.length = request.Package.length;
+                existing.width = request.Package.width;
+                existing.height = request.Package.height;
+
+                var oldMappings = db.PackageAttributeMapping
+                    .Where(x => x.package_id == existing.package_id);
+
+                foreach (var item in oldMappings.ToList())
+                {
+                    db.PackageAttributeMapping.Remove(item);
+                }
+
+                if (request.AttributeIds != null && request.AttributeIds.Any())
+                {
+                    foreach (var attrId in request.AttributeIds)
+                    {
+                        db.PackageAttributeMapping.Add(new PackageAttributeMapping
+                        {
+                            package_id = existing.package_id,
+                            attribute_id = attrId
+                        });
+                    }
+                }
+
+                db.SaveChanges();
+
+                var shipment = db.Shipments
+                    .FirstOrDefault(s => s.shipment_id == existing.shipment_id);
+
+                if (shipment != null)
+                {
+                    shipment.package_count = db.Packages
+                        .Count(p => p.shipment_id == shipment.shipment_id);
+
+                    shipment.total_weight = db.Packages
+                        .Where(p => p.shipment_id == shipment.shipment_id)
+                        .Sum(p => p.weight ?? 0);
+                }
+
+                db.SaveChanges();
+
+                scope.Complete();
+            }
+
+            return Ok(new
+            {
+                message = "Package updated successfully",
+                packageId = request.Package.package_id
+            });
+        }
         [Route("api/shipments/delete/package/{id}")]
         [HttpDelete]
         public IHttpActionResult DeletePackage(int id)
@@ -140,14 +248,14 @@ namespace Api_cargo.Controllers
                 string.IsNullOrWhiteSpace(model.recipient_contact))
                 return BadRequest("Recipient details are required");
 
-            // 🔥 FIX: DATE VALIDATION
+     
             if (model.booking_date == null)
                 return BadRequest("Pickup date is required");
 
             var existingRecipient = db.RecipientDetails
                 .FirstOrDefault(r => r.shipment_id == model.shipment_id);
 
-            // 🔥 LOCATION
+
             shipment.pickup_lat = model.pickup_lat;
             shipment.pickup_long = model.pickup_long;
             shipment.pickup_address = model.pickup_address;
@@ -156,9 +264,9 @@ namespace Api_cargo.Controllers
             shipment.delivery_long = model.delivery_long;
             shipment.delivery_address = model.delivery_address;
 
-            // 🔥 IMPORTANT FIX: SAVE DATE
+         
             shipment.pickup_date = model.booking_date;
-
+            shipment.shipment_radius = model.shipment_radius;
             shipment.strict = model.strict;
             shipment.status = "Pending";
 
