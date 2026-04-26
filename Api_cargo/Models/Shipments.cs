@@ -39,6 +39,7 @@ namespace Api_cargo.Models
         public string delivery_address { get; set; }
         public Nullable<System.DateTime> pickup_date { get; set; }
         public Nullable<double> shipment_radius { get; set; }
+        public string shipment_type { get; set; }
     
         public virtual ICollection<Bookings> Bookings { get; set; }
         public virtual ICollection<ChatThreads> ChatThreads { get; set; }

@@ -21,7 +21,10 @@ namespace Api_cargo.Models
 
         public string ContactNo { get; set; }
 
-        public string TruckType { get; set; }
+        public string TruckModel { get; set; }
+
+        public string LicenseNo { get; set; }
+        public double TotalCapacity { get; set; }
 
         public string PickupCity { get; set; }
 
@@ -36,5 +39,8 @@ namespace Api_cargo.Models
         public double Distance { get; set; }
         public double Rating { get; set; }
         public int TotalReviews { get; set; }
+
+        public DateTime? DepartureDate { get; set; }
+        public DateTime? ArrivalDate { get; set; }
     }
 }

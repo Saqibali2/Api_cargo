@@ -102,82 +102,100 @@ namespace Api_cargo.Controllers
             return Ok(result);
         }
 
-        [HttpGet]
-        [Route("api/drivers/{id}/requests")]
-        public IHttpActionResult GetDriverRequests(int id)
-        {
-            var rawData = db.Requests
-                .Where(r => r.driver_id == id && r.status == "Pending")
-                .Join(db.Shipments,
-                    r => r.shipment_id,
-                    s => s.shipment_id,
-                    (r, s) => new
-                    {
-                        r.request_id,
-                        r.shipment_id,
-                        r.fare,  
-
-                        s.pickup_address,
-                        s.delivery_address,
-                        s.total_weight,
-                        s.package_count,
-                        s.pickup_date,
-
-                        s.sender_name,
-                        s.sender_contact
-                    })
-                .ToList();
-
-            var data = rawData.Select(x => new
-            {
-                x.request_id,
-                x.shipment_id,
-
-                Title = "Shipment #" + x.shipment_id,
-
-                PickupCity = x.pickup_address != null
-                    ? x.pickup_address.Split(',')[0]
-                    : "N/A",
-
-                DestinationCity = x.delivery_address != null
-                    ? x.delivery_address.Split(',')[0]
-                    : "N/A",
-
-                Weight = x.total_weight ?? 0,
-                PackageCount = x.package_count ?? 0,
-
-                PickupDate = x.pickup_date,
-
-                CustomerName = x.sender_name,
-                CustomerContact = x.sender_contact,
-
-                Fare = x.fare ?? 0  
-            }).ToList();
-
-            return Ok(data);
-        }
+     
         [HttpPost]
-        [Route("api/drivers/find")]
+        [Route("api/trucks/available")]
         public IHttpActionResult GetDriversByAvailability(int shipmentId)
         {
             try
             {
-                var request = BuildRequestFromShipment(shipmentId);
+                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == shipmentId);
+                if (shipment == null)
+                    return Content(System.Net.HttpStatusCode.BadRequest, "Shipment not found");
 
-                var routes = FilterRoutesByDate(request);
+                if (shipment.pickup_lat == null || shipment.delivery_lat == null)
+                    return Content(System.Net.HttpStatusCode.BadRequest, "Shipment location missing");
 
-                var matchedRouteIds = MatchRoutesWithCheckpoints(routes, request);
+                var isStrict = shipment.strict ?? false;
+                var radius = shipment.shipment_radius ?? 10;
 
-                var result = BuildAvailableTruckDtos(matchedRouteIds, request);
+                if (radius >= 100)
+                    radius /= 1000;
 
-                return Ok(result);
+                double pickupLat = shipment.pickup_lat.Value;
+                double pickupLong = shipment.pickup_long.Value;
+                double destLat = shipment.delivery_lat.Value;
+                double destLong = shipment.delivery_long.Value;
+                DateTime requestedDate = shipment.pickup_date ?? DateTime.Now;
+
+                double MaxDistanceKm = radius;
+
+                var allSchedules = db.RouteSchedule.ToList();
+                var allCheckpoints = db.Checkpoints.ToList();
+
+                var allRoutes = db.Routes
+                    .Where(r => r.is_active == true || r.is_next_route == true)
+                    .ToList();
+
+                var matchedRouteIds = new List<int>();
+
+                foreach (var route in allRoutes)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Checking route: {route.route_id}");
+                    var checkpoints = allCheckpoints
+                        .Where(c => c.route_id == route.route_id)
+                        .OrderBy(c => c.sequence_no)
+                        .ToList();
+
+                    int pickupIndex = -1;
+                    int dropIndex = -1;
+
+                    for (int i = 0; i < checkpoints.Count; i++)
+                    {
+                        var cp = checkpoints[i];
+                        if (cp.latitude == null || cp.longitude == null) continue;
+
+                        if (pickupIndex == -1 &&
+                            CalculateDistance(pickupLat, pickupLong, cp.latitude.Value, cp.longitude.Value) <= MaxDistanceKm)
+                            pickupIndex = i;
+
+                        if (dropIndex == -1 &&
+                            CalculateDistance(destLat, destLong, cp.latitude.Value, cp.longitude.Value) <= MaxDistanceKm)
+                            dropIndex = i;
+                        System.Diagnostics.Debug.WriteLine($"Route {route.route_id} pickupIndex: {pickupIndex}, dropIndex: {dropIndex}");
+                    }
+
+                    if (pickupIndex == -1 || dropIndex == -1 || pickupIndex >= dropIndex)
+                        continue;
+
+                    var schedule = allSchedules.FirstOrDefault(s => s.route_id == route.route_id);
+                    if (schedule == null) continue;
+
+                    if (schedule.departureDate == null)
+                        continue;
+
+                    DateTime dep = schedule.departureDate.Value;
+
+                    if (isStrict && requestedDate.Date != dep.Date)
+                        continue;
+
+                    if (!isStrict && dep.Date < requestedDate.Date)
+                        continue;
+                    System.Diagnostics.Debug.WriteLine($"Route {route.route_id} dep: {dep}, requestedDate: {requestedDate}");
+
+                    matchedRouteIds.Add(route.route_id);
+                }
+
+                var result = BuildAvailableTruckDtos(matchedRouteIds, shipmentId, pickupLat, pickupLong, destLat, destLong, requestedDate, isStrict);
+                return Ok(result.OrderByDescending(x => x.Rating).ToList());
             }
             catch (Exception ex)
             {
                 return Content(System.Net.HttpStatusCode.InternalServerError, ex.Message);
             }
         }
-        private List<AvailabilityDto> BuildAvailableTruckDtos(List<int> routeIds, AvailabilityDto request)
+
+        private List<AvailabilityDto> BuildAvailableTruckDtos(List<int> routeIds, int shipmentId, double pickupLat, double pickupLong, double destLat, double destLong, DateTime requestedDate, bool isStrict)
         {
             var result = new List<AvailabilityDto>();
 
@@ -191,14 +209,20 @@ namespace Api_cargo.Controllers
                 .Where(d => driverIds.Contains(d.driver_id) && d.is_available == true)
                 .ToList();
 
-            var groupedRoutes = routes.GroupBy(r => r.driver_id);
+            var vehicles = db.Vehicle
+                .Where(v => driverIds.Contains(v.driver_id.Value))
+                .ToList();
 
-            foreach (var group in groupedRoutes)
+            double distance = CalculateDistance(pickupLat, pickupLong, destLat, destLong);
+            double price = distance * 50;
+
+            foreach (var route in routes)
             {
-                var driver = drivers.FirstOrDefault(d => d.driver_id == group.Key);
+                var driver = drivers.FirstOrDefault(d => d.driver_id == route.driver_id);
                 if (driver == null) continue;
 
-                var route = group.First();
+                var vehicle = vehicles.FirstOrDefault(v => v.driver_id == route.driver_id);
+                if (vehicle == null) continue;
 
                 var checkpoints = db.Checkpoints
                     .Where(c => c.route_id == route.route_id)
@@ -210,72 +234,51 @@ namespace Api_cargo.Controllers
                 var pickup = checkpoints.First();
                 var drop = checkpoints.Last();
 
-                double distance = CalculateDistance(
-                    request.pickupLat,
-                    request.pickupLong,
-                    request.destLat,
-                    request.destLong
-                );
+                var schedule = db.RouteSchedule.FirstOrDefault(s => s.route_id == route.route_id);
 
-                double price = distance * 50;
-
-                // 🔥 CAPACITY CHECK
-                bool canTake = ApplyCapacityCheck(driver.driver_id, request.shipmentId);
                 var ratingData = GetDriverRating(driver.driver_id);
+
+                bool canAccommodate = CanDriverAccommodateShipment(driver.driver_id, shipmentId, requestedDate);
+
+                double totalCapacity = (vehicle.length ?? 0) * (vehicle.width ?? 0) * (vehicle.height ?? 0);
+
                 result.Add(new AvailabilityDto
                 {
-                    // ✅ COPY FROM REQUEST (THIS IS YOUR BUG FIX)
-                    shipmentId = request.shipmentId,
-                    pickupLat = request.pickupLat,
-                    pickupLong = request.pickupLong,
-                    destLat = request.destLat,
-                    destLong = request.destLong,
-                    requestedDate = request.requestedDate,
-                    isStrict = request.isStrict,
+                    shipmentId = shipmentId,
+                    pickupLat = pickupLat,
+                    pickupLong = pickupLong,
+                    destLat = destLat,
+                    destLong = destLong,
+                    requestedDate = requestedDate,
+                    isStrict = isStrict,
 
-                    // DRIVER DATA
                     DriverId = driver.driver_id,
                     DriverName = driver.first_name + " " + driver.last_name,
                     ContactNo = driver.contact_no,
 
-                    TruckType = "General",
+                    TruckModel = vehicle.model ?? "Unknown",
+                    LicenseNo = driver.licence_no ?? "Unknown",
+                    TotalCapacity = Math.Round(totalCapacity, 2),
 
                     PickupCity = pickup.name ?? "Unknown",
                     DestinationCity = drop.name ?? "Unknown",
 
                     Price = Math.Round(price, 0),
-                    IsFull = !canTake,
+                    IsFull = !canAccommodate,
                     RouteId = route.route_id,
                     Distance = Math.Round(distance, 2),
                     Rating = ratingData.rating,
                     TotalReviews = ratingData.totalReviews,
+
+                    DepartureDate = schedule?.departureDate,
+                    ArrivalDate = schedule?.arrivalDate,
                 });
             }
 
             return result;
         }
-        private (double rating, int totalReviews) GetDriverRating(int driverId)
-        {
-            // 🔴 get driver user_id
-            var driver = db.Driver.FirstOrDefault(d => d.driver_id == driverId);
-            if (driver == null) return (0, 0);
 
-            int userId = driver.user_id;
-
-            // 🔴 get reviews
-            var reviews = db.Reviews
-                .Where(r => r.target_user_id == userId)
-                .ToList();
-
-            if (reviews.Count == 0)
-                return (0, 0);
-
-            double avgRating = reviews.Average(r => (double)(r.rating ?? 0));
-            int total = reviews.Count;
-
-            return (Math.Round(avgRating, 1), total);
-        }
-        private bool ApplyCapacityCheck(int driverId, int shipmentId)
+        private bool CanDriverAccommodateShipment(int driverId, int newShipmentId, DateTime requestedDate)
         {
             var vehicle = db.Vehicle.FirstOrDefault(v => v.driver_id == driverId);
             if (vehicle == null) return false;
@@ -283,14 +286,43 @@ namespace Api_cargo.Controllers
             double maxWeight = vehicle.weight_capacity ?? 0;
             double maxVolume = (vehicle.length ?? 0) * (vehicle.width ?? 0) * (vehicle.height ?? 0);
 
-            var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == shipmentId);
-            if (shipment == null) return false;
+            // Get BOTH active and next routes for this driver
+            var driverRoutes = db.Routes
+                .Where(r => r.driver_id == driverId && (r.is_active == true || r.is_next_route == true))
+                .Select(r => r.route_id)
+                .ToList();
 
-            double newWeight = shipment.total_weight ?? 0;
-            double newVolume = CalculateShipmentVolume(shipmentId);
+            if (!driverRoutes.Any()) return false;
 
-            bool weightOk = newWeight <= maxWeight;
-            bool volumeOk = newVolume <= maxVolume;
+            // Sum bookings across both routes on the requested date
+            var activeBookings = db.Bookings
+                .Where(b =>
+                    driverRoutes.Contains(b.route_id) &&
+                    b.status == "Confirmed" &&
+                    b.pickup_date <= requestedDate &&
+                    b.delivery_date >= requestedDate)
+                .ToList();
+
+            double usedWeight = 0;
+            double usedVolume = 0;
+
+            foreach (var booking in activeBookings)
+            {
+                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == booking.shipment_id);
+                if (shipment == null) continue;
+
+                usedWeight += shipment.total_weight ?? 0;
+                usedVolume += CalculateShipmentVolume(booking.shipment_id);
+            }
+
+            var newShipment = db.Shipments.FirstOrDefault(s => s.shipment_id == newShipmentId);
+            if (newShipment == null) return false;
+
+            double newWeight = newShipment.total_weight ?? 0;
+            double newVolume = CalculateShipmentVolume(newShipmentId);
+
+            bool weightOk = (usedWeight + newWeight) <= maxWeight;
+            bool volumeOk = (usedVolume + newVolume) <= maxVolume;
 
             return weightOk && volumeOk;
         }
@@ -309,86 +341,6 @@ namespace Api_cargo.Controllers
             var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 
             return R * c;
-        }
-        private List<RouteSchedule> FilterRoutesByDate(AvailabilityDto request)
-        {
-            return db.RouteSchedule
-                .ToList()
-                .Where(rs =>
-                {
-                    if (rs.departureDate == null)
-                        return false;
-
-                    DateTime dep;
-                    if (!DateTime.TryParse(rs.departureDate, out dep))
-                        return false;
-
-                    var routeDate = dep.Date;
-                    var shipmentDate = request.requestedDate.Date;
-
-                    if (request.isStrict)
-                    {
-                        return routeDate == shipmentDate;
-                    }
-                    else
-                    {
-                        return routeDate >= shipmentDate.AddDays(-2)
-                            && routeDate <= shipmentDate.AddDays(2);
-                    }
-
-                }).ToList();
-        }
-        private List<int> MatchRoutesWithCheckpoints(List<RouteSchedule> routes, AvailabilityDto request)
-        {
-            const double MaxDistanceKm = 20.0;
-
-            var routeIds = routes.Select(r => r.route_id).ToList();
-
-            var checkpointsByRoute = db.Checkpoints
-                .Where(c => c.route_id.HasValue && routeIds.Contains(c.route_id.Value))
-                .ToList()
-                .GroupBy(c => c.route_id.Value)
-                .ToList();
-
-            var matchedRouteIds = new List<int>();
-
-            foreach (var group in checkpointsByRoute)
-            {
-                var checkpoints = group.OrderBy(c => c.sequence_no).ToList();
-
-                int pickupIndex = -1;
-                int dropIndex = -1;
-
-                for (int i = 0; i < checkpoints.Count; i++)
-                {
-                    var cp = checkpoints[i];
-
-                    if (cp.latitude.HasValue && cp.longitude.HasValue)
-                    {
-                        double lat = cp.latitude.Value;
-                        double lon = cp.longitude.Value;
-
-                        if (pickupIndex == -1 &&
-                            CalculateDistance(request.pickupLat, request.pickupLong, lat, lon) <= MaxDistanceKm)
-                        {
-                            pickupIndex = i;
-                        }
-
-                        if (dropIndex == -1 &&
-                            CalculateDistance(request.destLat, request.destLong, lat, lon) <= MaxDistanceKm)
-                        {
-                            dropIndex = i;
-                        }
-                    }
-                }
-
-                if (pickupIndex != -1 && dropIndex != -1 && pickupIndex < dropIndex)
-                {
-                    matchedRouteIds.Add(group.Key);
-                }
-            }
-
-            return matchedRouteIds;
         }
         private double ToRadians(double angle)
         {
@@ -411,205 +363,33 @@ namespace Api_cargo.Controllers
 
             return totalVolume;
         }
-        private AvailabilityDto BuildRequestFromShipment(int shipmentId)
+        private (double rating, int totalReviews) GetDriverRating(int driverId)
         {
-            var shipment = db.Shipments
-                .FirstOrDefault(s => s.shipment_id == shipmentId);
+            var driver = db.Driver.FirstOrDefault(d => d.driver_id == driverId);
+            if (driver == null) return (0, 0);
 
-            if (shipment == null)
-                throw new Exception("Shipment not found");
+            int userId = driver.user_id;
 
-            if (shipment.pickup_lat == null || shipment.delivery_lat == null)
-                throw new Exception("Shipment location missing");
+            var reviews = db.Reviews
+                .Where(r => r.target_user_id == userId)
+                .ToList();
 
-            return new AvailabilityDto
-            {
-                shipmentId = shipmentId,
-                pickupLat = shipment.pickup_lat.Value,
-                pickupLong = shipment.pickup_long.Value,
-                destLat = shipment.delivery_lat.Value,
-                destLong = shipment.delivery_long.Value,
-                requestedDate = DateTime.Now,
-                isStrict = false
-            };
+            if (reviews.Count == 0)
+                return (0, 0);
+
+            double avgRating = reviews.Average(r => (double)(r.rating ?? 0));
+            int total = reviews.Count;
+
+            return (Math.Round(avgRating, 1), total);
         }
-        ////******************************************************************//
-        //[HttpPost]
-        //[Route("api/drivers/find")]
-        //public IHttpActionResult GetDriversByAvailability(AvailabilityDto request)
-        //{
-        //    try
-        //    {
-        //        const double MaxDistanceKm = 20.0;
-
-        //        var activeRouteIds = db.RouteSchedule
-        //            .ToList()
-        //            .Where(rs =>
-        //            {
-        //                if (string.IsNullOrEmpty(rs.departureDate) || string.IsNullOrEmpty(rs.arrivalDate))
-        //                    return false;
-
-        //                DateTime dep, arr;
-        //                if (DateTime.TryParse(rs.departureDate.Trim(), out dep) &&
-        //                    DateTime.TryParse(rs.arrivalDate.Trim(), out arr))
-        //                {
-        //                    return request.requestedDate.Date >= dep.Date && request.requestedDate.Date <= arr.Date;
-        //                }
-        //                return false;
-        //            })
-        //            .Select(rs => rs.route_id)
-        //            .Distinct()
-        //            .ToList();
-
-        //        if (!activeRouteIds.Any())
-        //            return Ok(new List<object>());
-
-        //        var checkpointsByRoute = db.Checkpoints
-        //            .Where(c => c.route_id.HasValue &&
-        //    activeRouteIds.Contains(c.route_id.Value))
-        //        .ToList()
-        //        .GroupBy(c => c.route_id)
-        //        .ToList();
-
-        //    var matchingDriverIds = new HashSet<int>();
-
-        //        foreach (var routeGroup in checkpointsByRoute)
-        //        {
-        //            var checkpoints = routeGroup.OrderBy(c => c.sequence_no).ToList();
-        //            bool pMatch = false;
-        //            bool dMatch = false;
-
-        //            foreach (var cp in checkpoints)
-        //            {
-        //                if (cp.latitude.HasValue && cp.longitude.HasValue)
-        //                {
-        //                    double lat = cp.latitude.Value;
-        //                    double lon = cp.longitude.Value;
-
-        //                    if (!pMatch && CalculateDistance(request.pickupLat, request.pickupLong, lat, lon) <= MaxDistanceKm)
-        //                        pMatch = true;
-
-        //                    if (!dMatch && CalculateDistance(request.destLat, request.destLong, lat, lon) <= MaxDistanceKm)
-        //                        dMatch = true;
-        //                }
-        //            }
-
-        //            if (pMatch && dMatch)
-        //            {
-        //                var route = db.Routes.FirstOrDefault(r => r.route_id == routeGroup.Key);
-        //                if (route != null)
-        //                    matchingDriverIds.Add(route.driver_id);
-        //            }
-        //        }
-
-        //        var drivers = db.Driver
-        //            .Where(d => matchingDriverIds.Contains(d.driver_id) && d.is_available == true)
-        //            .Select(d => new
-        //            {
-        //                d.driver_id,
-        //                d.user_id,
-        //                d.first_name,
-        //                d.last_name,
-        //                d.CNIC,
-        //                d.contact_no,
-        //                d.licence_no,
-        //                d.street_no,
-        //                d.city,
-        //                d.profile_image_url,
-        //                d.is_available
-        //            })
-        //            .ToList();
-
-        //        return Ok(drivers);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return Content(System.Net.HttpStatusCode.InternalServerError, ex.Message);
-        //    }
-        //}
-
-        //private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
-        //    {
-        //        const double R = 6371;
-        //        var dLat = ToRadians(lat2 - lat1);
-        //        var dLon = ToRadians(lon2 - lon1);
-        //        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-        //                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
-        //                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        //        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        //        return R * c;
-        //    }
-
-
-
-
-        //private double ToRadians(double deg) => deg * (Math.PI / 180);
-
-        /*
-         [HttpPut]
-         [Route("api/drivers/update/{id}")]
-         public IHttpActionResult UpdateDriver(int id, Driver updatedDriver)
-         {
-             var driver = db.Driver.FirstOrDefault(d => d.driver_id == id);
-             if (driver == null)
-             {
-                 return NotFound();
-             }
-             driver.first_name = updatedDriver.first_name;
-             driver.last_name = updatedDriver.last_name;
-             driver.CNIC = updatedDriver.CNIC;
-             driver.contact_no = updatedDriver.contact_no;
-             driver.licence_no = updatedDriver.licence_no;
-             driver.city = updatedDriver.city;
-             driver.street_no = updatedDriver.street_no;
-             driver.profile_image_url = updatedDriver.profile_image_url;
-             driver.is_available = updatedDriver.is_available;
-             db.SaveChanges();
-             return Ok("SUCCESS: Driver information updated successfully.");
-         }
-
-         [HttpDelete]
-         [Route("api/drivers/delete/{id}")]
-         public IHttpActionResult DeleteDriver(int id)
-         {
-             var driver = db.Driver.FirstOrDefault(d => d.driver_id == id);
-             if (driver == null)
-             {
-                 return NotFound();
-             }
-
-             var user = db.Users.FirstOrDefault(u => u.user_id == driver.user_id);
-             if (user == null)
-             {
-                 return NotFound();
-             }
-
-             var requests = db.Requests.Where(d => d.driver_id == id);
-             db.Requests.RemoveRange(requests);
-
-             var bookings = db.Bookings.Where(t => t.trip_id == id);
-             db.Bookings.RemoveRange(bookings);
-
-             var trips = db.Trips.Where(t => t.driver_id == id);
-             db.Trips.RemoveRange(trips);
-
-             db.Driver.Remove(driver);
-             db.Users.Remove(user);
-
-             db.SaveChanges();
-             return Ok("SUCCESS: Driver deleted successfully.");
-         }*/
-
-
-        /*---------------------------*/
         [HttpPost]
         [Route("api/request/send")]
-        public IHttpActionResult SendRequest(int shipmentId, int driverId, int routeId)
+        public IHttpActionResult SendRequest(int shipmentId, int driverId, int routeId, decimal fare)
         {
+
             var exists = db.Requests.FirstOrDefault(r =>
                 r.shipment_id == shipmentId &&
-                r.driver_id == driverId &&
-                r.status == "Pending"
+                r.driver_id == driverId
             );
 
             if (exists != null)
@@ -619,8 +399,9 @@ namespace Api_cargo.Controllers
             {
                 shipment_id = shipmentId,
                 driver_id = driverId,
-                status = "Pending",
-                 route_id = routeId,
+                route_id = routeId,
+                fare = fare,         
+                status = "Pending"  
             };
 
             db.Requests.Add(request);
@@ -752,5 +533,69 @@ namespace Api_cargo.Controllers
             }
         }
     }
-}
+
+        [HttpGet]
+        [Route("api/drivers/{id}/requests/pending")]
+        public IHttpActionResult GetDriverPendingRequests(int id)
+        {
+            return GetDriverRequestsByStatus(id, "pending");
+        }
+
+        [HttpGet]
+        [Route("api/drivers/{id}/requests/accepted")]
+        public IHttpActionResult GetDriverAcceptedRequests(int id)
+        {
+            return GetDriverRequestsByStatus(id, "accepted");
+        }
+
+        [HttpGet]
+        [Route("api/drivers/{id}/requests/declined")]
+        public IHttpActionResult GetDriverDeclinedRequests(int id)
+        {
+            return GetDriverRequestsByStatus(id, "declined");
+        }
+
+        private IHttpActionResult GetDriverRequestsByStatus(int id, string status)
+        {
+            var requests = db.Requests
+                .Where(r => r.driver_id == id && r.status == status)
+                .Select(r => new
+                {
+                    r.request_id,
+                    r.shipment_id,
+                    r.status,
+                    r.route_id,   
+                    r.fare,
+                })
+                .ToList();
+
+            var shipmentIds = requests.Select(r => r.shipment_id).ToList();
+
+            var shipments = db.Shipments
+                .Where(s => shipmentIds.Contains(s.shipment_id))
+                .Select(s => new
+                {
+                    s.shipment_id,
+                    s.sender_name,
+                    s.sender_contact,
+                    s.delivery_lat,
+                    s.delivery_long,
+                    s.delivery_address,
+                    s.pickup_lat,
+                    s.pickup_long,
+                    s.pickup_address,
+                    s.customer_id,
+                    s.package_count,
+                    s.total_weight
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                requestsData = requests,
+                totalRequests = requests.Count,
+                shipmentData = shipments
+            });
+        }
+    }
 }

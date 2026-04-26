@@ -13,6 +13,12 @@ namespace Api_cargo.Models
         public bool ActivateNow { get; set; }
         public decimal BaseFare { get; set; }
         public List<RoutePointDto> Points { get; set; }
+
+        public bool IsFragile { get; set; }
+        public bool IsLiquid { get; set; }
+        public bool IsFlammable { get; set; }
+        public bool KeepUpright { get; set; }
+        public string ShipmentType { get; set; }
     }
 
     public class RoutePointDto

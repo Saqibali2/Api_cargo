@@ -1,6 +1,7 @@
 ﻿using Api_cargo.Models;
 using System;
 using System.Linq;
+using System.Transactions;
 using System.Web.Http;
 
 namespace Api_cargo.Controllers
@@ -23,6 +24,13 @@ namespace Api_cargo.Controllers
             if (request == null || request.DriverId <= 0 || request.Points == null || !request.Points.Any())
                 return BadRequest("Invalid route data.");
 
+            if (request.ArrivalDate <= request.DepartureDate)
+                return BadRequest("Arrival must be after departure.");
+
+            if (string.IsNullOrEmpty(request.ShipmentType) ||
+               (request.ShipmentType != "shared" && request.ShipmentType != "full"))
+                return BadRequest("Invalid shipment type.");
+
             var activeRoute = db.Routes.FirstOrDefault(x =>
                 x.driver_id == request.DriverId &&
                 x.is_active == true);
@@ -39,48 +47,73 @@ namespace Api_cargo.Controllers
             else if (nextRoute == null)
                 makeNext = true;
 
-            var route = new Routes
+            using (var scope = new TransactionScope(TransactionScopeOption.Required))
             {
-                driver_id = request.DriverId,
-                is_active = makeActive,
-                is_next_route = makeNext,
-                base_fare = request.BaseFare
-            };
-
-            db.Routes.Add(route);
-            db.SaveChanges();
-
-            db.RouteSchedule.Add(new RouteSchedule
-            {
-                route_id = route.route_id,
-                departureDate = request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ss"),
-                arrivalDate = request.ArrivalDate.ToString("yyyy-MM-ddTHH:mm:ss")
-            });
-
-            db.SaveChanges();
-
-            foreach (var cp in request.Points)
-            {
-                db.Checkpoints.Add(new Checkpoints
+                try
                 {
-                    name = cp.Name,
-                    latitude = cp.Latitude,
-                    longitude = cp.Longitude,
-                    driver_id = request.DriverId,
-                    sequence_no = cp.SequenceNo,
-                    route_id = route.route_id,
-                    reached = false
-                });
+                    var route = new Routes
+                    {
+                        driver_id = request.DriverId,
+                        is_active = makeActive,
+                        is_next_route = makeNext,
+                        base_fare = request.BaseFare
+                    };
+
+                    db.Routes.Add(route);
+                    db.SaveChanges();
+
+                    // Route Schedule
+                    db.RouteSchedule.Add(new RouteSchedule
+                    {
+                        route_id = route.route_id,
+                        departureDate = request.DepartureDate,
+                        arrivalDate = request.ArrivalDate
+                    });
+
+                    // Route Preferences
+                    db.RoutePreferences.Add(new RoutePreferences
+                    {
+                        route_id = route.route_id,
+                        is_fragile = request.IsFragile,
+                        is_liquid = request.IsLiquid,
+                        is_flammable = request.IsFlammable,
+                        keep_upright = request.KeepUpright,
+                        shipment_type = request.ShipmentType
+                    });
+
+                    // Checkpoints
+                    foreach (var cp in request.Points)
+                    {
+                        db.Checkpoints.Add(new Checkpoints
+                        {
+                            name = cp.Name,
+                            latitude = cp.Latitude,
+                            longitude = cp.Longitude,
+                            driver_id = request.DriverId,
+                            sequence_no = cp.SequenceNo,
+                            route_id = route.route_id,
+                            reached = false
+                        });
+                    }
+
+                    db.SaveChanges();
+
+                    // 🔥 THIS LINE IS CRITICAL
+                    scope.Complete();
+
+                    return Ok(new
+                    {
+                        routeId = route.route_id,
+                        isActive = route.is_active,
+                        isNext = route.is_next_route
+                    });
+                }
+                catch (Exception)
+                {
+                    // No need for explicit rollback — TransactionScope handles it
+                    return InternalServerError();
+                }
             }
-
-            db.SaveChanges();
-
-            return Ok(new
-            {
-                routeId = route.route_id,
-                isActive = route.is_active,
-                isNext = route.is_next_route
-            });
         }
 
         [HttpGet]
@@ -130,39 +163,61 @@ namespace Api_cargo.Controllers
         [Route("api/driver/get-route-detail/{routeId}")]
         public IHttpActionResult GetRouteDetail(int routeId)
         {
-            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
-
-            if (route == null)
-                return BadRequest("Route not found.");
-
-            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == routeId);
-
-            var checkpoints = db.Checkpoints
-                .Where(x => x.route_id == routeId)
-                .OrderBy(x => x.sequence_no)
-                .ToList()
-                .Select(c => new
-                {
-                    checkpointId = c.checkpoint_id,
-                    name = c.name,
-                    latitude = c.latitude,
-                    longitude = c.longitude,
-                    sequenceNo = c.sequence_no,
-                    reached = c.reached
-                });
-
-            return Ok(new
+            try
             {
-                routeId = route.route_id,
-                fare = route.base_fare,
-                isActive = route.is_active,
-                isNextRoute = route.is_next_route,
-                departureDate = schedule?.departureDate,
-                arrivalDate = schedule?.arrivalDate,
-                checkpoints = checkpoints
-            });
-        }
+                var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
 
+                if (route == null)
+                    return BadRequest("Route not found.");
+
+                var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == routeId);
+
+                var preferences = db.RoutePreferences.FirstOrDefault(x => x.route_id == routeId);
+
+                var checkpoints = db.Checkpoints
+                    .Where(x => x.route_id == routeId)
+                    .OrderBy(x => x.sequence_no)
+                    .ToList()
+                    .Select(c => new
+                    {
+                        checkpointId = c.checkpoint_id,
+                        name = c.name,
+                        latitude = c.latitude,
+                        longitude = c.longitude,
+                        sequenceNo = c.sequence_no,
+                        reached = c.reached
+                    })
+                    .ToList();
+
+                return Ok(new
+                {
+                    routeId = route.route_id,
+                    fare = route.base_fare,
+                    isActive = route.is_active,
+                    isNextRoute = route.is_next_route,
+
+                    departureDate = schedule?.departureDate,
+                    arrivalDate = schedule?.arrivalDate,
+
+                    checkpoints = checkpoints,
+
+                    // ✅ NEW (SAFE)
+                    attributes = new
+                    {
+                        isFragile = preferences?.is_fragile ?? false,
+                        isLiquid = preferences?.is_liquid ?? false,
+                        isFlammable = preferences?.is_flammable ?? false,
+                        keepUpright = preferences?.keep_upright ?? false
+                    },
+
+                    shipmentType = preferences?.shipment_type ?? ""
+                });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
         [HttpPost]
         [Route("api/driver/activate-route/{routeId}")]
         public IHttpActionResult ActivateRoute(int routeId)
@@ -267,8 +322,8 @@ namespace Api_cargo.Controllers
 
             if (schedule != null)
             {
-                schedule.departureDate = request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ss");
-                schedule.arrivalDate = request.ArrivalDate.ToString("yyyy-MM-ddTHH:mm:ss");
+                schedule.departureDate = request.DepartureDate;
+                schedule.arrivalDate = request.ArrivalDate;
             }
 
             var oldPoints = db.Checkpoints.Where(x => x.route_id == routeId).ToList();

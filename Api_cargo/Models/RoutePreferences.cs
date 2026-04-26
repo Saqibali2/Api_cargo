@@ -12,12 +12,15 @@ namespace Api_cargo.Models
     using System;
     using System.Collections.Generic;
     
-    public partial class RouteSchedule
+    public partial class RoutePreferences
     {
-        public int routeScheduleId { get; set; }
+        public int id { get; set; }
         public int route_id { get; set; }
-        public Nullable<System.DateTime> departureDate { get; set; }
-        public Nullable<System.DateTime> arrivalDate { get; set; }
+        public Nullable<bool> is_fragile { get; set; }
+        public Nullable<bool> is_liquid { get; set; }
+        public Nullable<bool> is_flammable { get; set; }
+        public Nullable<bool> keep_upright { get; set; }
+        public string shipment_type { get; set; }
     
         public virtual Routes Routes { get; set; }
     }

@@ -49,10 +49,12 @@ namespace Api_cargo.Controllers
         [Route("api/reviews/user")]
         public IHttpActionResult GetUserReviews(int userId)
         {
-            var reviews = (from r in db.Reviews
+            var query = db.Reviews
+                .Where(r => r.reviewer_user_id == userId || r.target_user_id == userId);
+
+            var reviews = (from r in query
                            join ru in db.Users on r.reviewer_user_id equals ru.user_id
                            join tu in db.Users on r.target_user_id equals tu.user_id
-                           where r.reviewer_user_id == userId || r.target_user_id == userId
                            select new
                            {
                                id = r.review_id,
@@ -74,7 +76,14 @@ namespace Api_cargo.Controllers
                            .OrderByDescending(r => r.created_at)
                            .ToList();
 
-            return Ok(reviews);
+            var avg = Math.Round(query.Average(r => (double?)r.rating) ?? 0, 1);
+
+            return Ok(new
+            {
+                average_rating = avg,
+                total_reviews = query.Count(),
+                reviews = reviews
+            });
         }
 
     }

@@ -4,7 +4,7 @@
   <edmx:Runtime>
     <!-- SSDL content -->
     <edmx:StorageModels>
-    <Schema Namespace="CargoConnectModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+      <Schema Namespace="CargoConnectModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2008" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
         <EntityType Name="Admin">
           <Key>
             <PropertyRef Name="admin_id" />
@@ -211,6 +211,18 @@
           <Property Name="role_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="role_name" Type="nvarchar" MaxLength="50" Nullable="false" />
         </EntityType>
+        <EntityType Name="RoutePreferences">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
+          <Property Name="route_id" Type="int" Nullable="false" />
+          <Property Name="is_fragile" Type="bit" />
+          <Property Name="is_liquid" Type="bit" />
+          <Property Name="is_flammable" Type="bit" />
+          <Property Name="keep_upright" Type="bit" />
+          <Property Name="shipment_type" Type="varchar" MaxLength="10" Nullable="false" />
+        </EntityType>
         <EntityType Name="Routes">
           <Key>
             <PropertyRef Name="route_id" />
@@ -227,8 +239,8 @@
           </Key>
           <Property Name="routeScheduleId" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="route_id" Type="int" Nullable="false" />
-          <Property Name="departureDate" Type="nvarchar" MaxLength="50" Nullable="false" />
-          <Property Name="arrivalDate" Type="nvarchar" MaxLength="50" Nullable="false" />
+          <Property Name="departureDate" Type="datetime" />
+          <Property Name="arrivalDate" Type="datetime" />
         </EntityType>
         <EntityType Name="Shipments">
           <Key>
@@ -250,6 +262,7 @@
           <Property Name="delivery_address" Type="nvarchar" MaxLength="500" />
           <Property Name="pickup_date" Type="datetime" />
           <Property Name="shipment_radius" Type="float" />
+          <Property Name="shipment_type" Type="nvarchar" MaxLength="50" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -824,6 +837,18 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_RoutePreferences_Route">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
+          <End Role="RoutePreferences" Type="Self.RoutePreferences" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="RoutePreferences">
+              <PropertyRef Name="route_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <Association Name="FK_RouteSchedule_Routes">
           <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
           <End Role="RouteSchedule" Type="Self.RouteSchedule" Multiplicity="*" />
@@ -854,6 +879,7 @@
           <EntitySet Name="Requests" EntityType="Self.Requests" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Reviews" EntityType="Self.Reviews" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Roles" EntityType="Self.Roles" Schema="dbo" store:Type="Tables" />
+          <EntitySet Name="RoutePreferences" EntityType="Self.RoutePreferences" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Routes" EntityType="Self.Routes" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="RouteSchedule" EntityType="Self.RouteSchedule" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Shipments" EntityType="Self.Shipments" Schema="dbo" store:Type="Tables" />
@@ -1025,12 +1051,17 @@
             <End Role="Routes" EntitySet="Routes" />
             <End Role="Checkpoints" EntitySet="Checkpoints" />
           </AssociationSet>
+          <AssociationSet Name="FK_RoutePreferences_Route" Association="Self.FK_RoutePreferences_Route">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="RoutePreferences" EntitySet="RoutePreferences" />
+          </AssociationSet>
           <AssociationSet Name="FK_RouteSchedule_Routes" Association="Self.FK_RouteSchedule_Routes">
             <End Role="Routes" EntitySet="Routes" />
             <End Role="RouteSchedule" EntitySet="RouteSchedule" />
           </AssociationSet>
         </EntityContainer>
-      </Schema></edmx:StorageModels>
+      </Schema>
+    </edmx:StorageModels>
     <!-- CSDL content -->
     <edmx:ConceptualModels>
       <Schema Namespace="CargoConnectModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
@@ -1255,9 +1286,9 @@
           <Property Name="driver_id" Type="Int32" Nullable="false" />
           <Property Name="status" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
           <Property Name="fare" Type="Decimal" Precision="10" Scale="2" />
+          <Property Name="route_id" Type="Int32" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Requests__driver__797309D9" FromRole="Requests" ToRole="Driver" />
           <NavigationProperty Name="Shipments" Relationship="Self.FK__Requests__shipme__787EE5A0" FromRole="Requests" ToRole="Shipments" />
-          <Property Name="route_id" Type="Int32" />
         </EntityType>
         <EntityType Name="Reviews">
           <Key>
@@ -1282,6 +1313,19 @@
           <Property Name="role_name" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
           <NavigationProperty Name="Users" Relationship="Self.FK__Users__role_id__3E52440B" FromRole="Roles" ToRole="Users" />
         </EntityType>
+        <EntityType Name="RoutePreferences">
+          <Key>
+            <PropertyRef Name="id" />
+          </Key>
+          <Property Name="id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="route_id" Type="Int32" Nullable="false" />
+          <Property Name="is_fragile" Type="Boolean" />
+          <Property Name="is_liquid" Type="Boolean" />
+          <Property Name="is_flammable" Type="Boolean" />
+          <Property Name="keep_upright" Type="Boolean" />
+          <Property Name="shipment_type" Type="String" MaxLength="10" FixedLength="false" Unicode="false" Nullable="false" />
+          <NavigationProperty Name="Routes" Relationship="Self.FK_RoutePreferences_Route" FromRole="RoutePreferences" ToRole="Routes" />
+        </EntityType>
         <EntityType Name="Routes">
           <Key>
             <PropertyRef Name="route_id" />
@@ -1294,6 +1338,7 @@
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__route___0E6E26BF" FromRole="Routes" ToRole="Bookings" />
           <NavigationProperty Name="Checkpoints" Relationship="Self.FK_Checkpoints_Routes" FromRole="Routes" ToRole="Checkpoints" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Routes__driver_i__5EBF139D" FromRole="Routes" ToRole="Driver" />
+          <NavigationProperty Name="RoutePreferences" Relationship="Self.FK_RoutePreferences_Route" FromRole="Routes" ToRole="RoutePreferences" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Trips__route_id__07C12930" FromRole="Routes" ToRole="Trips" />
           <NavigationProperty Name="RouteSchedule" Relationship="Self.FK_RouteSchedule_Routes" FromRole="Routes" ToRole="RouteSchedule" />
         </EntityType>
@@ -1303,8 +1348,8 @@
           </Key>
           <Property Name="routeScheduleId" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
           <Property Name="route_id" Type="Int32" Nullable="false" />
-          <Property Name="departureDate" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
-          <Property Name="arrivalDate" Type="String" MaxLength="50" FixedLength="false" Unicode="true" Nullable="false" />
+          <Property Name="departureDate" Type="DateTime" Precision="3" />
+          <Property Name="arrivalDate" Type="DateTime" Precision="3" />
           <NavigationProperty Name="Routes" Relationship="Self.FK_RouteSchedule_Routes" FromRole="RouteSchedule" ToRole="Routes" />
         </EntityType>
         <EntityType Name="Shipments">
@@ -1326,13 +1371,14 @@
           <Property Name="delivery_long" Type="Double" />
           <Property Name="delivery_address" Type="String" MaxLength="500" FixedLength="false" Unicode="true" />
           <Property Name="pickup_date" Type="DateTime" Precision="3" />
+          <Property Name="shipment_radius" Type="Double" />
+          <Property Name="shipment_type" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__shipme__0C85DE4D" FromRole="Shipments" ToRole="Bookings" />
           <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__shipm__22751F6C" FromRole="Shipments" ToRole="ChatThreads" />
           <NavigationProperty Name="Customer" Relationship="Self.FK__Shipments__custo__72C60C4A" FromRole="Shipments" ToRole="Customer" />
           <NavigationProperty Name="Packages" Relationship="Self.FK__Packages__shipme__7C4F7684" FromRole="Shipments" ToRole="Packages" />
           <NavigationProperty Name="RecipientDetails" Relationship="Self.FK__Recipient__shipm__75A278F5" FromRole="Shipments" ToRole="RecipientDetails" />
           <NavigationProperty Name="Requests" Relationship="Self.FK__Requests__shipme__787EE5A0" FromRole="Shipments" ToRole="Requests" />
-          <Property Name="shipment_radius" Type="Double" />
         </EntityType>
         <EntityType Name="TripCheckpoints">
           <Key>
@@ -1851,6 +1897,18 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
+        <Association Name="FK_RoutePreferences_Route">
+          <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
+          <End Role="RoutePreferences" Type="Self.RoutePreferences" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="Routes">
+              <PropertyRef Name="route_id" />
+            </Principal>
+            <Dependent Role="RoutePreferences">
+              <PropertyRef Name="route_id" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
         <Association Name="FK__Trips__route_id__07C12930">
           <End Role="Routes" Type="Self.Routes" Multiplicity="1" />
           <End Role="Trips" Type="Self.Trips" Multiplicity="*" />
@@ -1965,6 +2023,7 @@
           <EntitySet Name="Requests" EntityType="Self.Requests" />
           <EntitySet Name="Reviews" EntityType="Self.Reviews" />
           <EntitySet Name="Roles" EntityType="Self.Roles" />
+          <EntitySet Name="RoutePreferences" EntityType="Self.RoutePreferences" />
           <EntitySet Name="Routes" EntityType="Self.Routes" />
           <EntitySet Name="RouteSchedule" EntityType="Self.RouteSchedule" />
           <EntitySet Name="Shipments" EntityType="Self.Shipments" />
@@ -2107,6 +2166,10 @@
           <AssociationSet Name="FK__Users__role_id__3E52440B" Association="Self.FK__Users__role_id__3E52440B">
             <End Role="Roles" EntitySet="Roles" />
             <End Role="Users" EntitySet="Users" />
+          </AssociationSet>
+          <AssociationSet Name="FK_RoutePreferences_Route" Association="Self.FK_RoutePreferences_Route">
+            <End Role="Routes" EntitySet="Routes" />
+            <End Role="RoutePreferences" EntitySet="RoutePreferences" />
           </AssociationSet>
           <AssociationSet Name="FK__Trips__route_id__07C12930" Association="Self.FK__Trips__route_id__07C12930">
             <End Role="Routes" EntitySet="Routes" />
@@ -2340,12 +2403,12 @@
           <EntitySetMapping Name="Requests">
             <EntityTypeMapping TypeName="CargoConnectModel.Requests">
               <MappingFragment StoreEntitySet="Requests">
-                <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="request_id" ColumnName="request_id" />
                 <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="driver_id" ColumnName="driver_id" />
                 <ScalarProperty Name="status" ColumnName="status" />
                 <ScalarProperty Name="fare" ColumnName="fare" />
+                <ScalarProperty Name="route_id" ColumnName="route_id" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2367,6 +2430,19 @@
               <MappingFragment StoreEntitySet="Roles">
                 <ScalarProperty Name="role_id" ColumnName="role_id" />
                 <ScalarProperty Name="role_name" ColumnName="role_name" />
+              </MappingFragment>
+            </EntityTypeMapping>
+          </EntitySetMapping>
+          <EntitySetMapping Name="RoutePreferences">
+            <EntityTypeMapping TypeName="CargoConnectModel.RoutePreferences">
+              <MappingFragment StoreEntitySet="RoutePreferences">
+                <ScalarProperty Name="id" ColumnName="id" />
+                <ScalarProperty Name="route_id" ColumnName="route_id" />
+                <ScalarProperty Name="is_fragile" ColumnName="is_fragile" />
+                <ScalarProperty Name="is_liquid" ColumnName="is_liquid" />
+                <ScalarProperty Name="is_flammable" ColumnName="is_flammable" />
+                <ScalarProperty Name="keep_upright" ColumnName="keep_upright" />
+                <ScalarProperty Name="shipment_type" ColumnName="shipment_type" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2394,7 +2470,6 @@
           <EntitySetMapping Name="Shipments">
             <EntityTypeMapping TypeName="CargoConnectModel.Shipments">
               <MappingFragment StoreEntitySet="Shipments">
-                <ScalarProperty Name="shipment_radius" ColumnName="shipment_radius" />
                 <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
                 <ScalarProperty Name="sender_name" ColumnName="sender_name" />
                 <ScalarProperty Name="sender_contact" ColumnName="sender_contact" />
@@ -2410,6 +2485,8 @@
                 <ScalarProperty Name="delivery_long" ColumnName="delivery_long" />
                 <ScalarProperty Name="delivery_address" ColumnName="delivery_address" />
                 <ScalarProperty Name="pickup_date" ColumnName="pickup_date" />
+                <ScalarProperty Name="shipment_radius" ColumnName="shipment_radius" />
+                <ScalarProperty Name="shipment_type" ColumnName="shipment_type" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>

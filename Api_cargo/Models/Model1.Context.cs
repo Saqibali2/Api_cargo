@@ -42,6 +42,7 @@ namespace Api_cargo.Models
         public DbSet<Requests> Requests { get; set; }
         public DbSet<Reviews> Reviews { get; set; }
         public DbSet<Roles> Roles { get; set; }
+        public DbSet<RoutePreferences> RoutePreferences { get; set; }
         public DbSet<Routes> Routes { get; set; }
         public DbSet<RouteSchedule> RouteSchedule { get; set; }
         public DbSet<Shipments> Shipments { get; set; }

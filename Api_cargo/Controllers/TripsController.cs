@@ -487,6 +487,76 @@ namespace Api_cargo.Controllers
 
                 return Ok(trips);
             }
+
+        private IHttpActionResult GetBookingsByStatus(int driverId, string status)
+        {
+            var bookings = (
+                from b in db.Bookings
+                join t in db.Trips on b.trip_id equals t.trip_id
+                join s in db.Shipments on b.shipment_id equals s.shipment_id
+                join r in db.RecipientDetails on b.shipment_id equals r.shipment_id
+                where t.driver_id == driverId && b.status == status
+                select new
+                {
+                    booking_id = b.booking_id,
+                    shipment_id = b.shipment_id,
+                    route_id = b.route_id,
+                    trip_id = b.trip_id,
+                    status = b.status,
+                    amount = b.amount,
+                    pickup_date = b.pickup_date,
+
+                    pickup_address = s.pickup_address,
+                    pickup_lat = s.pickup_lat,
+                    pickup_long = s.pickup_long,
+                    delivery_address = s.delivery_address,
+                    delivery_lat = s.delivery_lat,
+                    delivery_long = s.delivery_long,
+                    sender_name = s.sender_name,
+                    sender_contact = s.sender_contact,
+                    total_weight = s.total_weight,
+                    package_count = s.package_count,
+
+   
+                    recipient_name = r.recipient_fname + " " + r.recipient_lname,
+                    recipient_contact = r.recipient_contact,
+
+
+                    packages = db.Packages
+                        .Where(p => p.shipment_id == b.shipment_id)
+                        .Select(p => new
+                        {
+                            p.shipment_id,
+                            p.name,
+                            p.weight,
+                            p.length,
+                            p.width,
+                            p.height,
+                            p.quantity,
+                            p.color,
+                            p.tagNo
+                        }).AsEnumerable()
+
+                }).ToList();
+
+            return Ok(bookings);
         }
+
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/confirmed")]
+        public IHttpActionResult GetConfirmedBookings(int driverId) => GetBookingsByStatus(driverId, "Assigned");
+
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/in-transit")]
+        public IHttpActionResult GetInTransitBookings(int driverId) => GetBookingsByStatus(driverId, "In-Transit");
+
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/completed")]
+        public IHttpActionResult GetCompletedBookings(int driverId) => GetBookingsByStatus(driverId, "Completed");
+
+        [HttpGet]
+        [Route("api/drivers/{driverId}/bookings/canceled")]
+        public IHttpActionResult GetCanceledBookings(int driverId) => GetBookingsByStatus(driverId, "Canceled");
+    }
     }
 

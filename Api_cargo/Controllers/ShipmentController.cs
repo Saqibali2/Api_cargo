@@ -374,7 +374,7 @@ namespace Api_cargo.Controllers
         public IHttpActionResult GetCustomerPendingShipments(int customerId)
         {
             var shipments = db.Shipments
-                .Where(s => s.customer_id == customerId && s.status == "Pending")
+                .Where(s => s.customer_id == customerId && s.status == "Pending").ToList()
                 .Select(s => new ShipmentDto
                 {
                     shipment_id = s.shipment_id,
@@ -383,12 +383,33 @@ namespace Api_cargo.Controllers
                     status = s.status,
                     sender_name = s.sender_name,
                     sender_contact = s.sender_contact,
-                    total_weight = s.total_weight
+                    total_weight = s.total_weight,
+                    strict = s.strict,
+                    shipment_radius = s.shipment_radius,
+                    shipment_type = s.shipment_type,
+                    booking_date = s.pickup_date.HasValue
+            ? s.pickup_date.Value.ToString("yyyy-MM-dd")
+            : null,
+                    packages = db.Packages
+                        .Where(p => p.shipment_id == s.shipment_id)
+                        .Select(p => new PackageDto
+                        {
+                            shipment_id = p.shipment_id,
+                            name = p.name,
+                            weight = p.weight,
+                            length = p.length,
+                            width = p.width,
+                            height = p.height,
+                            quantity = p.quantity,
+                            color = p.color,
+                            tagNo = p.tagNo
+                        }).ToList()
                 })
                 .ToList();
 
             return Ok(shipments);
         }
+
 
         [HttpDelete]
         [Route("api/delete/{shipmentId}")]

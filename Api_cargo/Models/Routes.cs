@@ -18,6 +18,7 @@ namespace Api_cargo.Models
         {
             this.Bookings = new HashSet<Bookings>();
             this.Checkpoints = new HashSet<Checkpoints>();
+            this.RoutePreferences = new HashSet<RoutePreferences>();
             this.Trips = new HashSet<Trips>();
             this.RouteSchedule = new HashSet<RouteSchedule>();
         }
@@ -31,6 +32,7 @@ namespace Api_cargo.Models
         public virtual ICollection<Bookings> Bookings { get; set; }
         public virtual ICollection<Checkpoints> Checkpoints { get; set; }
         public virtual Driver Driver { get; set; }
+        public virtual ICollection<RoutePreferences> RoutePreferences { get; set; }
         public virtual ICollection<Trips> Trips { get; set; }
         public virtual ICollection<RouteSchedule> RouteSchedule { get; set; }
     }
