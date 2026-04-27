@@ -18,7 +18,7 @@ namespace Api_cargo.Models
         public string delivery_address { get; set; }
 
         public bool strict { get; set; }
-
+        public string shipment_type { get; set; }
         public string recipient_fname { get; set; }
         public string recipient_lname { get; set; }
         public string recipient_contact { get; set; }

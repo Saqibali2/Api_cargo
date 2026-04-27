@@ -275,7 +275,6 @@ namespace Api_cargo.Controllers
 
             return Ok("Scheduled");
         }
-
         [HttpDelete]
         [Route("api/driver/delete-route/{routeId}")]
         public IHttpActionResult DeleteRoute(int routeId)
@@ -304,52 +303,82 @@ namespace Api_cargo.Controllers
             return Ok("Deleted");
         }
 
-        [HttpPut]
-        [Route("api/driver/edit-route/{routeId}")]
-        public IHttpActionResult EditRoute(int routeId, CreateRouteRequest request)
+
+        [HttpGet]
+        [Route("api/driver/get-next-route/{driverId}")]
+        public IHttpActionResult GetNextRoute(int driverId)
         {
-            var route = db.Routes.FirstOrDefault(x => x.route_id == routeId);
+            var route = db.Routes.FirstOrDefault(x =>
+                x.driver_id == driverId &&
+                x.is_next_route == true);
 
             if (route == null)
-                return BadRequest("Route not found.");
+                return BadRequest("No next route found.");
 
-            if (route.is_active == true)
-                return BadRequest("Active route cannot be edited.");
+            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == route.route_id);
 
-            route.base_fare = request.BaseFare;
-
-            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == routeId);
-
-            if (schedule != null)
-            {
-                schedule.departureDate = request.DepartureDate;
-                schedule.arrivalDate = request.ArrivalDate;
-            }
-
-            var oldPoints = db.Checkpoints.Where(x => x.route_id == routeId).ToList();
-
-            foreach (var item in oldPoints)
-                db.Checkpoints.Remove(item);
-
-            db.SaveChanges();
-
-            foreach (var cp in request.Points)
-            {
-                db.Checkpoints.Add(new Checkpoints
+            var checkpoints = db.Checkpoints
+                .Where(x => x.route_id == route.route_id)
+                .OrderBy(x => x.sequence_no)
+                .Select(c => new
                 {
-                    name = cp.Name,
-                    latitude = cp.Latitude,
-                    longitude = cp.Longitude,
-                    driver_id = route.driver_id,
-                    route_id = routeId,
-                    sequence_no = cp.SequenceNo,
-                    reached = false
-                });
-            }
+                    checkpointId = c.checkpoint_id,
+                    name = c.name,
+                    latitude = c.latitude,
+                    longitude = c.longitude,
+                    sequenceNo = c.sequence_no,
+                    reached = c.reached
+                }).ToList();
 
-            db.SaveChanges();
+            return Ok(new
+            {
+                routeId = route.route_id,
+                driverId = route.driver_id,
+                fare = route.base_fare,
+                isActive = route.is_active,
+                isNextRoute = route.is_next_route,
+                departureDate = schedule?.departureDate,
+                arrivalDate = schedule?.arrivalDate,
+                checkpoints = checkpoints
+            });
+        }
+        [HttpGet]
+        [Route("api/driver/get-active-route/{driverId}")]
+        public IHttpActionResult GetActiveRoute(int driverId)
+        {
+            var route = db.Routes.FirstOrDefault(x =>
+                x.driver_id == driverId &&
+                x.is_active == true);
 
-            return Ok("Updated");
+            if (route == null)
+                return BadRequest("No active route found.");
+
+            var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == route.route_id);
+
+            var checkpoints = db.Checkpoints
+                .Where(x => x.route_id == route.route_id)
+                .OrderBy(x => x.sequence_no)
+                .Select(c => new
+                {
+                    checkpointId = c.checkpoint_id,
+                    name = c.name,
+                    latitude = c.latitude,
+                    longitude = c.longitude,
+                    sequenceNo = c.sequence_no,
+                    reached = c.reached
+                }).ToList();
+
+            return Ok(new
+            {
+                routeId = route.route_id,
+                driverId = route.driver_id,
+                fare = route.base_fare,
+                isActive = route.is_active,
+                isNextRoute = route.is_next_route,
+                departureDate = schedule?.departureDate,
+                arrivalDate = schedule?.arrivalDate,
+                checkpoints = checkpoints
+            });
         }
     }
 }

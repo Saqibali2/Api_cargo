@@ -12,7 +12,20 @@ namespace Api_cargo.Controllers
     public class DriverController : ApiController
     {
         CargoConnectEntities4 db = new CargoConnectEntities4();
+        private static readonly List<string> ColorPool = new List<string>
+        {
+            "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Cyan",
+            "Magenta", "Lime", "Indigo", "Violet", "Teal", "Coral", "Salmon",
+            "Crimson", "Scarlet", "Ruby", "Maroon", "Rose", "Fuchsia", "Lavender",
+            "Periwinkle", "Cobalt", "Navy", "Sky Blue", "Turquoise", "Mint",
+            "Emerald", "Olive", "Forest Green", "Sage", "Chartreuse", "Amber",
+            "Gold", "Mustard", "Tangerine", "Peach", "Apricot", "Bronze", "Copper",
+            "Chocolate", "Sienna", "Mahogany", "Burgundy", "Plum", "Eggplant",
+            "Lilac", "Mauve", "Taupe"
+        };
 
+        private static int _colorIndex = 0;
+        private static readonly object _colorLock = new object();
         [HttpGet]
         [Route("api/drivers/status")]
         public IHttpActionResult GetDriverStatus()
@@ -102,7 +115,7 @@ namespace Api_cargo.Controllers
             return Ok(result);
         }
 
-     
+
         [HttpPost]
         [Route("api/trucks/available")]
         public IHttpActionResult GetDriversByAvailability(int shipmentId)
@@ -127,7 +140,6 @@ namespace Api_cargo.Controllers
                 double destLat = shipment.delivery_lat.Value;
                 double destLong = shipment.delivery_long.Value;
                 DateTime requestedDate = shipment.pickup_date ?? DateTime.Now;
-
                 double MaxDistanceKm = radius;
 
                 var allSchedules = db.RouteSchedule.ToList();
@@ -141,7 +153,6 @@ namespace Api_cargo.Controllers
 
                 foreach (var route in allRoutes)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Checking route: {route.route_id}");
                     var checkpoints = allCheckpoints
                         .Where(c => c.route_id == route.route_id)
                         .OrderBy(c => c.sequence_no)
@@ -162,7 +173,6 @@ namespace Api_cargo.Controllers
                         if (dropIndex == -1 &&
                             CalculateDistance(destLat, destLong, cp.latitude.Value, cp.longitude.Value) <= MaxDistanceKm)
                             dropIndex = i;
-                        System.Diagnostics.Debug.WriteLine($"Route {route.route_id} pickupIndex: {pickupIndex}, dropIndex: {dropIndex}");
                     }
 
                     if (pickupIndex == -1 || dropIndex == -1 || pickupIndex >= dropIndex)
@@ -171,17 +181,65 @@ namespace Api_cargo.Controllers
                     var schedule = allSchedules.FirstOrDefault(s => s.route_id == route.route_id);
                     if (schedule == null) continue;
 
-                    if (schedule.departureDate == null)
-                        continue;
-
-                    DateTime dep = schedule.departureDate.Value;
+                    // NOW USING DateTime directly instead of parsing string
+                    DateTime dep = schedule.departureDate ?? DateTime.Now;  // already DateTime in DB
 
                     if (isStrict && requestedDate.Date != dep.Date)
                         continue;
 
                     if (!isStrict && dep.Date < requestedDate.Date)
                         continue;
-                    System.Diagnostics.Debug.WriteLine($"Route {route.route_id} dep: {dep}, requestedDate: {requestedDate}");
+
+                    var preferences = db.RoutePreferences.FirstOrDefault(p => p.route_id == route.route_id);
+                    if (preferences == null) continue;
+
+                    string shipmentType = shipment.shipment_type ?? "Full";
+
+                    if (preferences.shipment_type.ToLower() == "full")
+                    {
+                        // Driver wants full loads only
+                        if (shipmentType.ToLower() != "full") continue;
+
+                        // Check truck is completely empty — no active bookings on this route at all
+                        var hasExistingBookings = db.Bookings.Any(b =>
+                            b.route_id == route.route_id &&
+                            (b.status == "Assigned" || b.status == "In-Transit")
+                        );
+                        if (hasExistingBookings) continue;
+                    }
+                    else if (preferences.shipment_type.ToLower() == "shared")
+                    {
+                        // Driver wants shared loads only
+                        if (shipmentType.ToLower() != "shared") continue;
+                        // Capacity is already checked in CanDriverAccommodateShipment later
+                    }
+
+                    // Get all attribute IDs for this shipment's packages
+                    var shipmentAttributeIds = db.PackageAttributeMapping
+                        .Where(m => db.Packages
+                            .Where(p => p.shipment_id == shipmentId)
+                            .Select(p => p.package_id)
+                            .Contains(m.package_id))
+                        .Select(m => m.attribute_id)
+                        .Distinct()
+                        .ToList();
+
+                    bool shipmentIsFragile = shipmentAttributeIds.Contains(1);
+                    bool shipmentIsLiquid = shipmentAttributeIds.Contains(2);
+                    bool shipmentIsFlammable = shipmentAttributeIds.Contains(3);
+                    bool shipmentIsUpright = shipmentAttributeIds.Contains(4);
+
+                    // If shipment needs fragile handling, driver must accept fragile
+                    if (shipmentIsFragile && preferences.is_fragile != true) continue;
+
+                    // If shipment has liquid, driver must accept liquid
+                    if (shipmentIsLiquid && preferences.is_liquid != true) continue;
+
+                    // If shipment has flammable, driver must accept flammable
+                    if (shipmentIsFlammable && preferences.is_flammable != true) continue;
+
+                    // If shipment needs upright, driver must accept upright
+                    if (shipmentIsUpright && preferences.keep_upright != true) continue;
 
                     matchedRouteIds.Add(route.route_id);
                 }
@@ -199,6 +257,12 @@ namespace Api_cargo.Controllers
         {
             var result = new List<AvailabilityDto>();
 
+            var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == shipmentId);
+            if (shipment == null) return result;
+
+            double shipmentWeight = shipment.total_weight ?? 0;
+            double shipmentVolume = CalculateShipmentVolume(shipmentId);
+
             var routes = db.Routes
                 .Where(r => routeIds.Contains(r.route_id))
                 .ToList();
@@ -214,7 +278,6 @@ namespace Api_cargo.Controllers
                 .ToList();
 
             double distance = CalculateDistance(pickupLat, pickupLong, destLat, destLong);
-            double price = distance * 50;
 
             foreach (var route in routes)
             {
@@ -235,12 +298,34 @@ namespace Api_cargo.Controllers
                 var drop = checkpoints.Last();
 
                 var schedule = db.RouteSchedule.FirstOrDefault(s => s.route_id == route.route_id);
-
+                var preferences = db.RoutePreferences.FirstOrDefault(p => p.route_id == route.route_id);
                 var ratingData = GetDriverRating(driver.driver_id);
-
                 bool canAccommodate = CanDriverAccommodateShipment(driver.driver_id, shipmentId, requestedDate);
 
-                double totalCapacity = (vehicle.length ?? 0) * (vehicle.width ?? 0) * (vehicle.height ?? 0);
+                double baseFare = (double)(route.base_fare ?? 0);
+
+                double maxWeight = vehicle.weight_capacity ?? 0;
+
+                double totalCapacity = (double)vehicle.weight_capacity;
+
+                double price = 0;
+
+                string prefType = preferences?.shipment_type?.ToLower() ?? "shared";
+
+                if (prefType == "full")
+                {
+                    // Full truck — price based on entire truck capacity
+                    double a = baseFare * maxWeight;
+                    double b = baseFare * totalCapacity;
+                    price = (a >= b) ? a : b;
+                }
+                else
+                {
+                    // Shared — price based on this shipment's weight and volume only
+                    double w = baseFare * shipmentWeight;
+                    double a = baseFare * shipmentVolume;
+                    price = (w >= a) ? w : a;
+                }
 
                 result.Add(new AvailabilityDto
                 {
@@ -257,7 +342,7 @@ namespace Api_cargo.Controllers
                     ContactNo = driver.contact_no,
 
                     TruckModel = vehicle.model ?? "Unknown",
-                    LicenseNo = driver.licence_no ?? "Unknown",
+                    LicenseNo = vehicle.vehicle_reg_no ?? "Unknown",
                     TotalCapacity = Math.Round(totalCapacity, 2),
 
                     PickupCity = pickup.name ?? "Unknown",
@@ -270,8 +355,8 @@ namespace Api_cargo.Controllers
                     Rating = ratingData.rating,
                     TotalReviews = ratingData.totalReviews,
 
-                    DepartureDate = schedule?.departureDate,
-                    ArrivalDate = schedule?.arrivalDate,
+                    DepartureDate = schedule?.departureDate ?? DateTime.Now,
+                    ArrivalDate = schedule?.arrivalDate ?? DateTime.Now,
                 });
             }
 
@@ -358,7 +443,7 @@ namespace Api_cargo.Controllers
             {
                 double volume = (p.length ?? 0) * (p.width ?? 0) * (p.height ?? 0);
 
-                totalVolume += volume * (p.quantity ?? 1);
+                totalVolume += volume;
             }
 
             return totalVolume;
@@ -428,17 +513,13 @@ namespace Api_cargo.Controllers
 
 
 
-[HttpPost]
-    [Route("api/drivers/accept-request")]
-    public IHttpActionResult AcceptRequest(int requestId)
-    {
-        using (var scope = new TransactionScope())
+        [HttpPost]
+        [Route("api/drivers/accept-request")]
+        public IHttpActionResult AcceptRequest(int requestId)
         {
             try
             {
-      
                 var request = db.Requests.FirstOrDefault(r => r.request_id == requestId);
-
                 if (request == null)
                     return BadRequest("Request not found");
 
@@ -449,30 +530,71 @@ namespace Api_cargo.Controllers
                 int driverId = request.driver_id;
 
                 var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == shipmentId);
-
                 if (shipment == null)
                     return BadRequest("Shipment not found");
+
+                var vehicleForCheck = db.Vehicle.FirstOrDefault(v => v.driver_id == driverId);
+                if (vehicleForCheck == null)
+                    return BadRequest("Driver vehicle not found");
+
+                string shipmentType = shipment.shipment_type ?? "Full";
+
+                if (shipmentType.ToLower() == "full")
+                {
+                    var hasExistingBookings = db.Bookings.Any(b =>
+                        b.route_id == request.route_id &&
+                        (b.status == "Assigned" || b.status == "In-Transit")
+                    );
+                    if (hasExistingBookings)
+                        return BadRequest("Truck is no longer empty. Cannot accept a full load request.");
+                }
+                else if (shipmentType.ToLower() == "shared")
+                {
+                    // Shared — check weight and volume capacity
+                    double maxWeight = vehicleForCheck.weight_capacity ?? 0;
+                    double maxVolume = (vehicleForCheck.length ?? 0) * (vehicleForCheck.width ?? 0) * (vehicleForCheck.height ?? 0);
+
+                    var existingBookings = db.Bookings
+                        .Where(b =>
+                            b.route_id == request.route_id &&
+                            (b.status == "Assigned" || b.status == "In-Transit"))
+                        .ToList();
+
+                    double usedWeight = 0;
+                    double usedVolume = 0;
+
+                    foreach (var b in existingBookings)
+                    {
+                        var s = db.Shipments.FirstOrDefault(x => x.shipment_id == b.shipment_id);
+                        if (s == null) continue;
+                        usedWeight += s.total_weight ?? 0;
+                        usedVolume += CalculateShipmentVolume(b.shipment_id);
+                    }
+
+                    double newWeight = shipment.total_weight ?? 0;
+                    double newVolume = CalculateShipmentVolume(shipmentId);
+
+                    if ((usedWeight + newWeight) > maxWeight)
+                        return BadRequest("Truck does not have enough weight capacity for this shipment.");
+
+                    if ((usedVolume + newVolume) > maxVolume)
+                        return BadRequest("Truck does not have enough space for this shipment.");
+                }
 
                 request.status = "Accepted";
 
                 var otherRequests = db.Requests
                     .Where(r => r.shipment_id == shipmentId && r.request_id != requestId)
                     .ToList();
-
                 foreach (var r in otherRequests)
-                {
-                    r.status = "Rejected";
-                }
+                    r.status = "Declined";
 
                 shipment.status = "Assigned";
 
-         
                 var vehicleRegNo = db.Vehicle
                     .Where(v => v.driver_id == driverId)
                     .Select(v => v.vehicle_reg_no)
                     .FirstOrDefault();
-
-         
                 if (vehicleRegNo == null)
                     return BadRequest("Driver vehicle not found");
 
@@ -480,26 +602,37 @@ namespace Api_cargo.Controllers
                     .Where(rt => rt.driver_id == driverId)
                     .Select(rt => rt.route_id)
                     .FirstOrDefault();
-
-         
                 if (routeId == 0)
                     return BadRequest("Driver route not found");
 
-           
-                var trip = new Trips
+                var existingTrip = db.Trips.FirstOrDefault(t =>
+                    t.driver_id == driverId &&
+                    t.route_id == routeId &&
+                    t.status == "Scheduled"
+                );
+
+                Trips trip;
+                if (existingTrip != null)
                 {
-                    driver_id = driverId,
-                    vehicle_reg_no = vehicleRegNo,
-                    route_id = routeId,
-                    start_time = null,
-                    end_time = null,
-                    status = "Scheduled"
-                };
+                    // Reuse existing trip
+                    trip = existingTrip;
+                }
+                else
+                {
+                    // Create new trip
+                    trip = new Trips
+                    {
+                        driver_id = driverId,
+                        vehicle_reg_no = vehicleRegNo,
+                        route_id = routeId,
+                        start_time = null,
+                        end_time = null,
+                        status = "Scheduled"
+                    };
+                    db.Trips.Add(trip);
+                    db.SaveChanges();
+                }
 
-                db.Trips.Add(trip);
-                db.SaveChanges();
-
- 
                 var booking = new Bookings
                 {
                     shipment_id = shipmentId,
@@ -515,10 +648,16 @@ namespace Api_cargo.Controllers
 
                 db.Bookings.Add(booking);
 
-                db.SaveChanges();
+                var packages = db.Packages
+                    .Where(p => p.shipment_id == shipmentId)
+                    .ToList();
 
-     
-                scope.Complete();
+                foreach (var pkg in packages)
+                {
+                    pkg.tagNo = GenerateTagNo();
+                    pkg.color = GetNextColor();
+                }SSS
+                db.SaveChanges();
 
                 return Ok(new
                 {
@@ -532,8 +671,22 @@ namespace Api_cargo.Controllers
                 return InternalServerError(ex);
             }
         }
-    }
+        private string GetNextColor()
+        {
+            lock (_colorLock)
+            {
+                var color = ColorPool[_colorIndex % ColorPool.Count];
+                _colorIndex++;
+                return color;
+            }
+        }
 
+        private string GenerateTagNo()
+        {
+            var random = new Random();
+            return "PKG-" + random.Next(100000, 999999).ToString();
+        }
+     
         [HttpGet]
         [Route("api/drivers/{id}/requests/pending")]
         public IHttpActionResult GetDriverPendingRequests(int id)
@@ -597,5 +750,8 @@ namespace Api_cargo.Controllers
                 shipmentData = shipments
             });
         }
+       
+        
     }
+
 }

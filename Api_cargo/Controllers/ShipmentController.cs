@@ -267,6 +267,7 @@ namespace Api_cargo.Controllers
          
             shipment.pickup_date = model.booking_date;
             shipment.shipment_radius = model.shipment_radius;
+            shipment.shipment_type = model.shipment_type;
             shipment.strict = model.strict;
             shipment.status = "Pending";
 
