@@ -656,7 +656,7 @@ namespace Api_cargo.Controllers
                 {
                     pkg.tagNo = GenerateTagNo();
                     pkg.color = GetNextColor();
-                }SSS
+                }
                 db.SaveChanges();
 
                 return Ok(new

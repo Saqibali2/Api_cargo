@@ -350,9 +350,13 @@ namespace Api_cargo.Controllers
                 x.driver_id == driverId &&
                 x.is_active == true);
 
-            if (route == null)
-                return BadRequest("No active route found.");
-
+            if (route == null) { 
+                return Ok(new
+                {
+                    checkpoints = new object[] { },
+                    message = "No active route"
+                });
+            }
             var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == route.route_id);
 
             var checkpoints = db.Checkpoints
