@@ -312,8 +312,13 @@ namespace Api_cargo.Controllers
                 x.driver_id == driverId &&
                 x.is_next_route == true);
 
-            if (route == null)
-                return BadRequest("No next route found.");
+            if (route == null) { 
+                return Ok(new
+                {
+                    checkpoints = new object[] { },
+                    message = "No active route"
+                });
+            }
 
             var schedule = db.RouteSchedule.FirstOrDefault(x => x.route_id == route.route_id);
 
