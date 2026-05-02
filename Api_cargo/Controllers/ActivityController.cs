@@ -29,6 +29,49 @@ namespace Api_cargo.Controllers
 
             return Ok(notifications);
         }
+        [HttpGet]
+        [Route("api/activity/notifications/{userId}/unreadCount")]
+        public IHttpActionResult GetUnreadNotificationCount(int userId)
+        {
+            try
+            {
+                int count = db.Notifications
+                    .Count(n => n.user_id == userId && n.is_read == false);
+
+                return Ok(new { count = count });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError();
+            }
+        }
+
+        [HttpPost]
+        [Route("api/activity/notifications/{userId}/markAllRead")]
+        public IHttpActionResult MarkAllNotificationsRead(int userId)
+        {
+            try
+            {
+                var unreadList = db.Notifications
+                    .Where(n => n.user_id == userId && n.is_read == false)
+                    .ToList();
+
+                foreach (var n in unreadList)
+                {
+                    n.is_read = true;
+                    n.read_at = DateTime.Now;
+                }
+
+                db.SaveChanges();
+
+                return Ok(new { updated = unreadList.Count });
+            }
+            catch (Exception ex)
+            {
+
+                return InternalServerError();
+            }
+        }
         [HttpPost]
         [Route("api/chat/thread")]
         public IHttpActionResult GetOrCreateThread(int customerUserId, int driverUserId)

@@ -425,40 +425,46 @@ namespace Api_cargo.Controllers
                 }
             }
         }
-
         [HttpGet]
         [Route("api/customers/{customerId}/bookings")]
         public IHttpActionResult GetCustomerBookings(int customerId)
         {
             var bookings = (
-     from b in db.Bookings
+                from b in db.Bookings
+                join r in db.Routes
+                    on b.route_id equals r.route_id into routeGroup
+                from r in routeGroup.DefaultIfEmpty()
 
-     join r in db.Routes
-         on b.route_id equals r.route_id into routeGroup
-     from r in routeGroup.DefaultIfEmpty()
+                join t in db.Trips
+                    on b.trip_id equals t.trip_id into tripGroup
+                from t in tripGroup.DefaultIfEmpty()
 
-     let fromCp = db.Checkpoints
-         .Where(c => r != null && c.route_id == r.route_id)
-         .OrderBy(c => c.sequence_no)
-         .FirstOrDefault()
 
-     let toCp = db.Checkpoints
-         .Where(c => r != null && c.route_id == r.route_id)
-         .OrderByDescending(c => c.sequence_no)
-         .FirstOrDefault()
+                join d in db.Driver
+                    on t.driver_id equals d.driver_id into driverGroup
+                from d in driverGroup.DefaultIfEmpty()
 
-     where b.customer_id == customerId
+                let fromCp = db.Checkpoints
+                    .Where(c => r != null && c.route_id == r.route_id)
+                    .OrderBy(c => c.sequence_no)
+                    .FirstOrDefault()
+                let toCp = db.Checkpoints
+                    .Where(c => r != null && c.route_id == r.route_id)
+                    .OrderByDescending(c => c.sequence_no)
+                    .FirstOrDefault()
+                where b.customer_id == customerId
+                select new
+                {
+                    id = b.booking_id,
+                    status = b.status,
+                    amount = b.amount,
+                    bookingType = b.booking_type,
+                    fromCheckpoint = fromCp != null ? fromCp.name : null,
+                    toCheckpoint = toCp != null ? toCp.name : null,
 
-     select new
-     {
-         id = b.booking_id,
-         status = b.status,
-         amount = b.amount,
-         bookingType = b.booking_type,
-         fromCheckpoint = fromCp != null ? fromCp.name : null,
-         toCheckpoint = toCp != null ? toCp.name : null,
-     }
- ).ToList();
+                    driverUserId = d != null ? (int?)d.user_id : null
+                }
+            ).ToList();
 
             return Ok(bookings);
         }
