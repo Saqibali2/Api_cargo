@@ -248,7 +248,7 @@ namespace Api_cargo.Controllers
                 string.IsNullOrWhiteSpace(model.recipient_contact))
                 return BadRequest("Recipient details are required");
 
-     
+
             if (model.booking_date == null)
                 return BadRequest("Pickup date is required");
 
@@ -264,7 +264,7 @@ namespace Api_cargo.Controllers
             shipment.delivery_long = model.delivery_long;
             shipment.delivery_address = model.delivery_address;
 
-         
+
             shipment.pickup_date = model.booking_date;
             shipment.shipment_radius = model.shipment_radius;
             shipment.shipment_type = model.shipment_type;
@@ -302,7 +302,7 @@ namespace Api_cargo.Controllers
                 pickupDate = shipment.pickup_date
             });
         }
-       
+
 
         [Route("api/shipments/packages/{shipmentId}")]
         [HttpGet]
@@ -431,96 +431,137 @@ namespace Api_cargo.Controllers
         public IHttpActionResult GetCustomerBookings(int customerId)
         {
             var bookings = (
-                from b in db.Bookings
-                join r in db.Routes on b.route_id equals r.route_id into routeGroup
-                from r in routeGroup.DefaultIfEmpty()
-                join d in db.Driver on r.driver_id equals d.driver_id into driverGroup
-                from d in driverGroup.DefaultIfEmpty()
-                join s in db.Shipments on b.shipment_id equals s.shipment_id into shipmentGroup
-                from s in shipmentGroup.DefaultIfEmpty()
-                join rs in db.RouteSchedule on r.route_id equals rs.route_id into scheduleGroup
-                from rs in scheduleGroup.DefaultIfEmpty()
-                join v in db.Vehicle on r.driver_id equals v.driver_id into vehicleGroup
-                from v in vehicleGroup.DefaultIfEmpty()
-                join rd in db.RecipientDetails
-                    on b.shipment_id equals rd.shipment_id into recipientGroup
-                from rd in recipientGroup.DefaultIfEmpty()
+     from b in db.Bookings
 
-                let fromCp = db.Checkpoints
-                    .Where(c => r != null && c.route_id == r.route_id)
-                    .OrderBy(c => c.sequence_no)
-                    .FirstOrDefault()
+     join r in db.Routes
+         on b.route_id equals r.route_id into routeGroup
+     from r in routeGroup.DefaultIfEmpty()
 
-                let toCp = db.Checkpoints
-                    .Where(c => r != null && c.route_id == r.route_id)
-                    .OrderByDescending(c => c.sequence_no)
-                    .FirstOrDefault()
+     let fromCp = db.Checkpoints
+         .Where(c => r != null && c.route_id == r.route_id)
+         .OrderBy(c => c.sequence_no)
+         .FirstOrDefault()
 
-                where b.customer_id == customerId
-                select new
-                {
-                    // Booking
-                    id = b.booking_id,
-                    status = b.status,
-                    amount = b.amount,
-                    booking_type = b.booking_type,
-                    pickup_date = b.pickup_date,
-                    estimated_delivery = b.estimated_delivery_datetime,
-                    actual_delivery = b.actual_delivery_datetime,
+     let toCp = db.Checkpoints
+         .Where(c => r != null && c.route_id == r.route_id)
+         .OrderByDescending(c => c.sequence_no)
+         .FirstOrDefault()
 
-                    // Route checkpoints
-                    fromCheckpoint = fromCp != null ? fromCp.name : null,
-                    toCheckpoint = toCp != null ? toCp.name : null,
+     where b.customer_id == customerId
 
-                    // Schedule
-                    departure_date = rs != null ? rs.departureDate : null,
-                    arrival_date = rs != null ? rs.arrivalDate : null,
-
-                    // Driver
-                    driver_user_id = d != null ? (int?)d.user_id : null,
-                    driver_name = d != null ? d.first_name + " " + d.last_name : null,
-                    driver_contact = d != null ? d.contact_no : null,
-                    license_no = d != null ? d.licence_no : null,
-
-                    // Vehicle
-                    vehicle_model = v != null ? v.model : null,
-                    vehicle_reg_no = v != null ? v.vehicle_reg_no : null,
-
-                    // Shipment
-                    shipment_id = s != null ? s.shipment_id : (int?)null,
-                    pickup_address = s != null ? s.pickup_address : null,
-                    delivery_address = s != null ? s.delivery_address : null,
-                    total_weight = s != null ? s.total_weight : null,
-                    package_count = s != null ? s.package_count : null,
-
-                    // Recipient
-                    recipient_name = rd != null ? rd.recipient_fname + " " + rd.recipient_lname : null,
-                    recipient_contact = rd != null ? rd.recipient_contact : null,
-
-                    // Packages
-                    packages = db.Packages
-                        .Where(p => p.shipment_id == b.shipment_id)
-                        .Select(p => new
-                        {
-                            p.shipment_id,
-                            p.name,
-                            p.weight,
-                            p.length,
-                            p.width,
-                            p.height,
-                            p.quantity,
-                            p.color,
-                            p.tagNo
-                        }).AsEnumerable()
-                }
-            ).ToList();
+     select new
+     {
+         id = b.booking_id,
+         status = b.status,
+         amount = b.amount,
+         bookingType = b.booking_type,
+         fromCheckpoint = fromCp != null ? fromCp.name : null,
+         toCheckpoint = toCp != null ? toCp.name : null,
+     }
+ ).ToList();
 
             return Ok(bookings);
         }
 
+        [HttpGet]
+        [Route("api/bookings/{bookingId}")]
+        public IHttpActionResult GetBookingById(int bookingId)
+        {
+            var booking = db.Bookings
+                .Where(b => b.booking_id == bookingId)
+                .Select(b => new
+                {
+                    id = b.booking_id,
+                    status = b.status,
+                    amount = b.amount,
+                    bookingType = b.booking_type,
+                    pickupDate = b.pickup_date,
+                    shipmentId = b.shipment_id,
+                    routeId = b.route_id,
+                    tripId = b.trip_id
+                })
+                .FirstOrDefault();
+
+            if (booking == null)
+                return NotFound();
+
+            // Shipment
+            var shipment = db.Shipments
+                .Where(s => s.shipment_id == booking.shipmentId)
+                .Select(s => new
+                {
+                    senderName = s.sender_name,
+                    senderContact = s.sender_contact,
+                    pickupAddress = s.pickup_address,
+                    deliveryAddress = s.delivery_address,
+                    totalWeight = s.total_weight,
+                    packageCount = s.package_count
+                })
+                .FirstOrDefault();
+
+            // Route checkpoints
+            var fromCheckpoint = db.Checkpoints
+                .Where(c => c.route_id == booking.routeId)
+                .OrderBy(c => c.sequence_no)
+                .Select(c => c.name)
+                .FirstOrDefault();
+
+            var toCheckpoint = db.Checkpoints
+                .Where(c => c.route_id == booking.routeId)
+                .OrderByDescending(c => c.sequence_no)
+                .Select(c => c.name)
+                .FirstOrDefault();
+
+            // Trip
+            var tripStatus = db.Trips
+                .Where(t => t.trip_id == booking.tripId)
+                .Select(t => t.status)
+                .FirstOrDefault();
+
+            // Packages (NOW SAFE)
+            var packages = db.Packages
+                .Where(p => p.shipment_id == booking.shipmentId)
+                .Select(p => new
+                {
+                    packageId = p.package_id,
+                    name = p.name,
+                    weight = p.weight,
+                    length = p.length,
+                    width = p.width,
+                    height = p.height,
+                    quantity = p.quantity,
+                    color = p.color,
+                    tagNo = p.tagNo
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                booking.id,
+                booking.status,
+                booking.amount,
+                booking.bookingType,
+                booking.pickupDate,
+                fromCheckpoint,
+                toCheckpoint,
+                shipment,
+                tripStatus,
+                packages
+            });
+        }
+        [Route("api/customers/{customerId}/pending-shipments-count")]
+        public IHttpActionResult GetPendingShipmentsCount(int customerId)
+        {
+            var count = db.Shipments
+                .Where(s => s.customer_id == customerId && s.status == "Pending")
+                .Count();
+
+            return Ok(count);
+        }
+
     }
 
-    public class PackageWithMapping
+        public class PackageWithMapping
     {
         public Packages Package { get; set; }
         public List<int> AttributeIds { get; set; }

@@ -26,96 +26,7 @@ namespace Api_cargo.Controllers
 
         private static int _colorIndex = 0;
         private static readonly object _colorLock = new object();
-        [HttpGet]
-        [Route("api/drivers/status")]
-        public IHttpActionResult GetDriverStatus()
-        {
-            return Ok("SUCCESS: Driver connection successful.");
-        }
-        [HttpGet]
-        [Route("api/drivers")]
-        public IHttpActionResult GetAllDrivers()
-        {
-            var drivers = db.Driver.Select(d => new
-            {
-                d.driver_id,
-                d.user_id,
-                d.first_name,
-                d.last_name,
-                d.CNIC,
-                d.contact_no,
-                d.licence_no,
-                d.city,
-                d.street_no,
-                d.profile_image_url,
-                d.is_available,
-
-            }).ToList();
-            return Ok(drivers);
-        }
-        [HttpGet]
-        [Route("api/drivers/{id}")]
-        public IHttpActionResult GetDriver(int id)
-        {
-            var result = db.Driver.Select(d => new
-            {
-                d.driver_id,
-                d.user_id,
-                d.first_name,
-                d.last_name,
-                d.CNIC,
-                d.contact_no,
-                d.licence_no,
-                d.city,
-                d.street_no,
-                d.profile_image_url,
-                d.is_available,
-
-            }).Where(d => d.driver_id == id).FirstOrDefault(d => d.driver_id == id);
-            return Ok(result);
-        }
-
-        [HttpGet]
-        [Route("api/drivers/byuserid/{userID}")]
-        public IHttpActionResult GetDriverByUserId(int userId)
-        {
-            var result = db.Driver.Select(d => new
-            {
-                d.driver_id,
-                d.user_id,
-                d.first_name,
-                d.last_name,
-                d.CNIC,
-                d.contact_no,
-                d.licence_no,
-                d.city,
-                d.street_no,
-                d.profile_image_url,
-                d.is_available,
-
-            }).Where(d => d.user_id == userId).Select(d => new
-            {
-                d.driver_id,
-                d.user_id,
-                d.first_name,
-                d.last_name,
-                d.CNIC,
-                d.contact_no,
-                d.licence_no,
-                d.city,
-                d.street_no,
-                d.profile_image_url,
-                d.is_available,
-
-            }).FirstOrDefault(d => d.user_id == userId);
-            if (result == null)
-            {
-                return NotFound();
-            }
-            return Ok(result);
-        }
-
-
+      
         [HttpPost]
         [Route("api/trucks/available")]
         public IHttpActionResult GetDriversByAvailability(int shipmentId)
@@ -469,12 +380,12 @@ namespace Api_cargo.Controllers
         }
         [HttpPost]
         [Route("api/request/send")]
-        public IHttpActionResult SendRequest(int shipmentId, int driverId, int routeId, decimal fare)
+        public IHttpActionResult SendRequest(int shipmentId, int driverId, int routeId, double fare)
         {
-
             var exists = db.Requests.FirstOrDefault(r =>
                 r.shipment_id == shipmentId &&
-                r.driver_id == driverId
+                r.driver_id == driverId &&
+                r.status == "Pending"
             );
 
             if (exists != null)
@@ -484,10 +395,22 @@ namespace Api_cargo.Controllers
             {
                 shipment_id = shipmentId,
                 driver_id = driverId,
+                status = "Pending",
                 route_id = routeId,
-                fare = fare,         
-                status = "Pending"  
+                fare = (decimal?)fare
             };
+            var customer = db.Shipments
+                .Where(s => s.shipment_id == shipmentId)
+                .Select(s => s.customer_id)
+                .FirstOrDefault();
+            var customerName = db.Customer
+                .Where(c => c.customer_id == customer)
+                .Select(c => c.first_name + " " + c.last_name)
+                .FirstOrDefault();
+
+            var driver = db.Driver.FirstOrDefault(d => d.driver_id == driverId);
+            if (driver != null)
+                NotificationHelper.Send(db, driver.user_id, "You have received a request from " + customerName + ".");
 
             db.Requests.Add(request);
             db.SaveChanges();
@@ -510,9 +433,6 @@ namespace Api_cargo.Controllers
 
             return Ok(new { message = "Request declined" });
         }
-
-
-
         [HttpPost]
         [Route("api/drivers/accept-request")]
         public IHttpActionResult AcceptRequest(int requestId)
@@ -550,7 +470,6 @@ namespace Api_cargo.Controllers
                 }
                 else if (shipmentType.ToLower() == "shared")
                 {
-                    // Shared — check weight and volume capacity
                     double maxWeight = vehicleForCheck.weight_capacity ?? 0;
                     double maxVolume = (vehicleForCheck.length ?? 0) * (vehicleForCheck.width ?? 0) * (vehicleForCheck.height ?? 0);
 
@@ -657,7 +576,17 @@ namespace Api_cargo.Controllers
                     pkg.tagNo = GenerateTagNo();
                     pkg.color = GetNextColor();
                 }
+
                 db.SaveChanges();
+
+                var driverName = db.Driver
+                    .Where(d => d.driver_id == driverId)
+                    .Select(d => d.first_name + " " + d.last_name)
+                    .FirstOrDefault();
+
+                var customer = db.Customer.FirstOrDefault(c => c.customer_id == booking.customer_id);
+                if (customer != null)
+                    NotificationHelper.Send(db, customer.user_id, "Your request has been accepted by " + driverName + ".");
 
                 return Ok(new
                 {
@@ -686,7 +615,152 @@ namespace Api_cargo.Controllers
             var random = new Random();
             return "PKG-" + random.Next(100000, 999999).ToString();
         }
-     
+        [HttpGet]
+        [Route("api/drivers/{driverId}/truck-stats")]
+        public IHttpActionResult GetTruckStats(int driverId)
+        {
+            try
+            {
+                var vehicle = db.Vehicle.FirstOrDefault(v => v.driver_id == driverId);
+                if (vehicle == null)
+                    return BadRequest("Vehicle not found for this driver");
+
+                // Get active route for this driver
+                var driverRouteIds = db.Routes
+                    .Where(r => r.driver_id == driverId &&
+                     (r.is_active == true || r.is_next_route == true))
+                    .Select(r => r.route_id)
+                    .ToList();
+
+                if (!driverRouteIds.Any())
+                    return BadRequest("No active or next route found");
+
+                // Get all active bookings across both routes
+                var activeBookings = db.Bookings
+                    .Where(b =>
+                        driverRouteIds.Contains(b.route_id) &&
+                        (b.status == "Assigned" || b.status == "In-Transit"))
+                    .ToList();
+
+                // Calculate used weight and volume from all active bookings
+                double usedWeight = 0;
+                double usedVolume = 0;
+
+                foreach (var booking in activeBookings)
+                {
+                    var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == booking.shipment_id);
+                    if (shipment == null) continue;
+                    usedWeight += shipment.total_weight ?? 0;
+                    usedVolume += CalculateShipmentVolume(booking.shipment_id);
+                }
+
+                // Truck total dimensions
+                double totalLength = vehicle.length ?? 0;
+                double totalWidth = vehicle.width ?? 0;
+                double totalHeight = vehicle.height ?? 0;
+                double totalVolume = totalLength * totalWidth * totalHeight;
+                double maxWeight = vehicle.weight_capacity ?? 0;
+
+                // Remaining
+                double remainingWeight = Math.Max(0, maxWeight - usedWeight);
+                double remainingVolume = Math.Max(0, totalVolume - usedVolume);
+
+                // Back-calculate remaining dimensions assuming uniform fill
+                // remaining as a ratio of total
+                double fillRatio = totalVolume > 0 ? (remainingVolume / totalVolume) : 0;
+                double remainingLength = Math.Round(totalLength * fillRatio, 2);
+                double remainingWidth = Math.Round(totalWidth * fillRatio, 2);
+                double remainingHeight = Math.Round(totalHeight * fillRatio, 2);
+
+                return Ok(new
+                {
+                    // Weight
+                    max_weight = Math.Round(maxWeight, 2),
+                    used_weight = Math.Round(usedWeight, 2),
+                    remaining_weight = Math.Round(remainingWeight, 2),
+
+                    // Total dimensions
+                    total_length = Math.Round(totalLength, 2),
+                    total_width = Math.Round(totalWidth, 2),
+                    total_height = Math.Round(totalHeight, 2),
+                    total_volume = Math.Round(totalVolume, 2),
+
+                    // Used
+                    used_volume = Math.Round(usedVolume, 2),
+
+                    // Remaining
+                    remaining_volume = Math.Round(remainingVolume, 2),
+                    remaining_length = remainingLength,
+                    remaining_width = remainingWidth,
+                    remaining_height = remainingHeight,
+
+                    // Meta
+                    active_bookings = activeBookings.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+        [HttpGet]
+        [Route("api/drivers/{driverId}/truck-info")]
+        public IHttpActionResult GetTruckInfo(int driverId)
+        {
+            try
+            {
+                var vehicle = db.Vehicle.FirstOrDefault(v => v.driver_id == driverId);
+                if (vehicle == null)
+                    return BadRequest("No vehicle assigned to this driver");
+
+                var activeShipments = (from b in db.Bookings
+                                       join p in db.Packages on b.shipment_id equals p.shipment_id
+                                       where b.status == "In-Transit"
+
+                                       select p).ToList();
+
+                double usedWeight = activeShipments.Sum(p => (double)(p.weight ?? 0) * (p.quantity ?? 1));
+                double usedLength = activeShipments.Sum(p => (double)(p.length ?? 0) * (p.quantity ?? 1));
+                double usedWidth = activeShipments.Sum(p => (double)(p.width ?? 0) * (p.quantity ?? 1));
+                double usedHeight = activeShipments.Sum(p => (double)(p.height ?? 0) * (p.quantity ?? 1));
+
+                double maxWeight = (double)(vehicle.weight_capacity ?? 0);
+                double maxLength = (double)(vehicle.length ?? 0);
+                double maxWidth = (double)(vehicle.width ?? 0);
+                double maxHeight = (double)(vehicle.height ?? 0);
+
+                return Ok(new
+                {
+                    vehicle_model = vehicle.model,
+                    reg_no = vehicle.vehicle_reg_no,
+
+                    weight = new
+                    {
+                        max_capacity = maxWeight,
+                        used_capacity = usedWeight,
+                        remaining_capacity = maxWeight - usedWeight
+                    },
+
+                    dimensions = new
+                    {
+                        max_dimensions = new { l = maxLength, w = maxWidth, h = maxHeight },
+                        used_dimensions = new { l = usedLength, w = usedWidth, h = usedHeight },
+                        remaining_dimensions = new
+                        {
+                            l = Math.Max(0, maxLength - usedLength),
+                            w = Math.Max(0, maxWidth - usedWidth),
+                            h = Math.Max(0, maxHeight - usedHeight)
+                        }
+                    },
+
+                    active_package_count = activeShipments.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
         [HttpGet]
         [Route("api/drivers/{id}/requests/pending")]
         public IHttpActionResult GetDriverPendingRequests(int id)

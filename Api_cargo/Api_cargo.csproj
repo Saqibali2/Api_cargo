@@ -104,10 +104,8 @@
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\ActivityController.cs" />
     <Compile Include="Controllers\AuthController.cs" />
-    <Compile Include="Controllers\CheckpointsController.cs" />
     <Compile Include="Controllers\DriverController.cs" />
     <Compile Include="Controllers\NotificationHelper.cs" />
-    <Compile Include="Controllers\NotificationsController.cs" />
     <Compile Include="Controllers\ReviewsController.cs" />
     <Compile Include="Controllers\RouteController.cs" />
     <Compile Include="Controllers\ShipmentController.cs" />
