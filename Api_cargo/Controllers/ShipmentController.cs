@@ -302,31 +302,7 @@ namespace Api_cargo.Controllers
                 pickupDate = shipment.pickup_date
             });
         }
-        [Route("api/shipments/edit/recipient/{id}")]
-        [HttpPut]
-        public IHttpActionResult EditRecipient(int id, RecipientDetails recipient)
-        {
-            var existing = db.RecipientDetails
-                .FirstOrDefault(r => r.recipient_detail_id == id);
-
-            if (existing == null)
-                return NotFound();
-
-            var shipment = db.Shipments
-                .FirstOrDefault(s => s.shipment_id == existing.shipment_id);
-
-            if (shipment.status != "Draft")
-                return BadRequest("Cannot edit after submission");
-
-            existing.recipient_fname = recipient.recipient_fname;
-            existing.recipient_lname = recipient.recipient_lname;
-            existing.recipient_contact = recipient.recipient_contact;
-            existing.instructionsMessage = recipient.instructionsMessage;
-
-            db.SaveChanges();
-
-            return Ok("Recipient updated successfully");
-        }
+       
 
         [Route("api/shipments/packages/{shipmentId}")]
         [HttpGet]
@@ -351,25 +327,6 @@ namespace Api_cargo.Controllers
             return Ok(packages);
         }
 
-        [Route("api/shipments/customer/{customerId}")]
-        [HttpGet]
-        public IHttpActionResult GetShipmentsByCustomer(int customerId)
-        {
-            var shipments = db.Shipments
-                .Where(s => s.customer_id == customerId)
-                .Select(s => new
-                {
-                    s.shipment_id,
-                    s.status,
-                    s.pickup_address,
-                    s.delivery_address,
-                    s.total_weight,
-                    s.package_count
-                })
-                .ToList();
-
-            return Ok(shipments);
-        }
         [HttpGet]
         [Route("api/shipments/pending/customer/{customerId}")]
         public IHttpActionResult GetCustomerPendingShipments(int customerId)
@@ -467,6 +424,98 @@ namespace Api_cargo.Controllers
                     return InternalServerError(ex);
                 }
             }
+        }
+
+        [HttpGet]
+        [Route("api/customers/{customerId}/bookings")]
+        public IHttpActionResult GetCustomerBookings(int customerId)
+        {
+            var bookings = (
+                from b in db.Bookings
+                join r in db.Routes on b.route_id equals r.route_id into routeGroup
+                from r in routeGroup.DefaultIfEmpty()
+                join d in db.Driver on r.driver_id equals d.driver_id into driverGroup
+                from d in driverGroup.DefaultIfEmpty()
+                join s in db.Shipments on b.shipment_id equals s.shipment_id into shipmentGroup
+                from s in shipmentGroup.DefaultIfEmpty()
+                join rs in db.RouteSchedule on r.route_id equals rs.route_id into scheduleGroup
+                from rs in scheduleGroup.DefaultIfEmpty()
+                join v in db.Vehicle on r.driver_id equals v.driver_id into vehicleGroup
+                from v in vehicleGroup.DefaultIfEmpty()
+                join rd in db.RecipientDetails
+                    on b.shipment_id equals rd.shipment_id into recipientGroup
+                from rd in recipientGroup.DefaultIfEmpty()
+
+                let fromCp = db.Checkpoints
+                    .Where(c => r != null && c.route_id == r.route_id)
+                    .OrderBy(c => c.sequence_no)
+                    .FirstOrDefault()
+
+                let toCp = db.Checkpoints
+                    .Where(c => r != null && c.route_id == r.route_id)
+                    .OrderByDescending(c => c.sequence_no)
+                    .FirstOrDefault()
+
+                where b.customer_id == customerId
+                select new
+                {
+                    // Booking
+                    id = b.booking_id,
+                    status = b.status,
+                    amount = b.amount,
+                    booking_type = b.booking_type,
+                    pickup_date = b.pickup_date,
+                    estimated_delivery = b.estimated_delivery_datetime,
+                    actual_delivery = b.actual_delivery_datetime,
+
+                    // Route checkpoints
+                    fromCheckpoint = fromCp != null ? fromCp.name : null,
+                    toCheckpoint = toCp != null ? toCp.name : null,
+
+                    // Schedule
+                    departure_date = rs != null ? rs.departureDate : null,
+                    arrival_date = rs != null ? rs.arrivalDate : null,
+
+                    // Driver
+                    driver_user_id = d != null ? (int?)d.user_id : null,
+                    driver_name = d != null ? d.first_name + " " + d.last_name : null,
+                    driver_contact = d != null ? d.contact_no : null,
+                    license_no = d != null ? d.licence_no : null,
+
+                    // Vehicle
+                    vehicle_model = v != null ? v.model : null,
+                    vehicle_reg_no = v != null ? v.vehicle_reg_no : null,
+
+                    // Shipment
+                    shipment_id = s != null ? s.shipment_id : (int?)null,
+                    pickup_address = s != null ? s.pickup_address : null,
+                    delivery_address = s != null ? s.delivery_address : null,
+                    total_weight = s != null ? s.total_weight : null,
+                    package_count = s != null ? s.package_count : null,
+
+                    // Recipient
+                    recipient_name = rd != null ? rd.recipient_fname + " " + rd.recipient_lname : null,
+                    recipient_contact = rd != null ? rd.recipient_contact : null,
+
+                    // Packages
+                    packages = db.Packages
+                        .Where(p => p.shipment_id == b.shipment_id)
+                        .Select(p => new
+                        {
+                            p.shipment_id,
+                            p.name,
+                            p.weight,
+                            p.length,
+                            p.width,
+                            p.height,
+                            p.quantity,
+                            p.color,
+                            p.tagNo
+                        }).AsEnumerable()
+                }
+            ).ToList();
+
+            return Ok(bookings);
         }
 
     }

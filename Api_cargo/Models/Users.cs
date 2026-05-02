@@ -17,8 +17,6 @@ namespace Api_cargo.Models
         public Users()
         {
             this.Admin = new HashSet<Admin>();
-            this.ChatMessages = new HashSet<ChatMessages>();
-            this.ChatThreads = new HashSet<ChatThreads>();
             this.Customer = new HashSet<Customer>();
             this.Driver = new HashSet<Driver>();
             this.Notifications = new HashSet<Notifications>();
@@ -38,8 +36,6 @@ namespace Api_cargo.Models
         public Nullable<System.DateTime> updated_at { get; set; }
     
         public virtual ICollection<Admin> Admin { get; set; }
-        public virtual ICollection<ChatMessages> ChatMessages { get; set; }
-        public virtual ICollection<ChatThreads> ChatThreads { get; set; }
         public virtual ICollection<Customer> Customer { get; set; }
         public virtual ICollection<Driver> Driver { get; set; }
         public virtual ICollection<Notifications> Notifications { get; set; }

@@ -38,16 +38,6 @@
           <Property Name="estimated_delivery_datetime" Type="datetime" />
           <Property Name="actual_delivery_datetime" Type="datetime" />
         </EntityType>
-        <EntityType Name="ChatAttachments">
-          <Key>
-            <PropertyRef Name="attachment_id" />
-          </Key>
-          <Property Name="attachment_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="message_id" Type="int" Nullable="false" />
-          <Property Name="file_url" Type="nvarchar" MaxLength="255" />
-          <Property Name="file_type" Type="nvarchar" MaxLength="50" />
-          <Property Name="uploaded_at" Type="datetime" />
-        </EntityType>
         <EntityType Name="ChatMessages">
           <Key>
             <PropertyRef Name="message_id" />
@@ -55,7 +45,7 @@
           <Property Name="message_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
           <Property Name="thread_id" Type="int" Nullable="false" />
           <Property Name="sender_user_id" Type="int" Nullable="false" />
-          <Property Name="message_text" Type="nvarchar(max)" />
+          <Property Name="message_text" Type="nvarchar" MaxLength="1000" Nullable="false" />
           <Property Name="is_read" Type="bit" />
           <Property Name="sent_at" Type="datetime" />
         </EntityType>
@@ -64,11 +54,9 @@
             <PropertyRef Name="thread_id" />
           </Key>
           <Property Name="thread_id" Type="int" StoreGeneratedPattern="Identity" Nullable="false" />
-          <Property Name="thread_type" Type="nvarchar" MaxLength="50" />
-          <Property Name="shipment_id" Type="int" />
-          <Property Name="created_by_user_id" Type="int" Nullable="false" />
-          <Property Name="assigned_admin_id" Type="int" />
-          <Property Name="status" Type="nvarchar" MaxLength="50" />
+          <Property Name="customer_user_id" Type="int" Nullable="false" />
+          <Property Name="driver_user_id" Type="int" Nullable="false" />
+          <Property Name="created_at" Type="datetime" />
         </EntityType>
         <EntityType Name="Checkpoints">
           <Key>
@@ -82,6 +70,7 @@
           <Property Name="route_id" Type="int" />
           <Property Name="sequence_no" Type="int" />
           <Property Name="reached" Type="bit" Nullable="false" />
+          <Property Name="estimated_arrival_datetime" Type="datetime" />
         </EntityType>
         <EntityType Name="Customer">
           <Key>
@@ -417,31 +406,7 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__ChatAttac__messa__2DE6D218">
-          <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="1" />
-          <End Role="ChatAttachments" Type="Self.ChatAttachments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="ChatMessages">
-              <PropertyRef Name="message_id" />
-            </Principal>
-            <Dependent Role="ChatAttachments">
-              <PropertyRef Name="message_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatMessa__sende__2A164134">
-          <End Role="Users" Type="Self.Users" Multiplicity="1" />
-          <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Users">
-              <PropertyRef Name="user_id" />
-            </Principal>
-            <Dependent Role="ChatMessages">
-              <PropertyRef Name="sender_user_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatMessa__threa__29221CFB">
+        <Association Name="FK__ChatMessa__threa__65370702">
           <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="1" />
           <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="*" />
           <ReferentialConstraint>
@@ -450,42 +415,6 @@
             </Principal>
             <Dependent Role="ChatMessages">
               <PropertyRef Name="thread_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__assig__245D67DE">
-          <End Role="Admin" Type="Self.Admin" Multiplicity="0..1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Admin">
-              <PropertyRef Name="admin_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="assigned_admin_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__creat__236943A5">
-          <End Role="Users" Type="Self.Users" Multiplicity="1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Users">
-              <PropertyRef Name="user_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="created_by_user_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__shipm__22751F6C">
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="0..1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Shipments">
-              <PropertyRef Name="shipment_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="shipment_id" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -864,7 +793,6 @@
         <EntityContainer Name="CargoConnectModelStoreContainer">
           <EntitySet Name="Admin" EntityType="Self.Admin" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Bookings" EntityType="Self.Bookings" Schema="dbo" store:Type="Tables" />
-          <EntitySet Name="ChatAttachments" EntityType="Self.ChatAttachments" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="ChatMessages" EntityType="Self.ChatMessages" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="ChatThreads" EntityType="Self.ChatThreads" Schema="dbo" store:Type="Tables" />
           <EntitySet Name="Checkpoints" EntityType="Self.Checkpoints" Schema="dbo" store:Type="Tables" />
@@ -911,29 +839,9 @@
             <End Role="Trips" EntitySet="Trips" />
             <End Role="Bookings" EntitySet="Bookings" />
           </AssociationSet>
-          <AssociationSet Name="FK__ChatAttac__messa__2DE6D218" Association="Self.FK__ChatAttac__messa__2DE6D218">
-            <End Role="ChatMessages" EntitySet="ChatMessages" />
-            <End Role="ChatAttachments" EntitySet="ChatAttachments" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatMessa__sende__2A164134" Association="Self.FK__ChatMessa__sende__2A164134">
-            <End Role="Users" EntitySet="Users" />
-            <End Role="ChatMessages" EntitySet="ChatMessages" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatMessa__threa__29221CFB" Association="Self.FK__ChatMessa__threa__29221CFB">
+          <AssociationSet Name="FK__ChatMessa__threa__65370702" Association="Self.FK__ChatMessa__threa__65370702">
             <End Role="ChatThreads" EntitySet="ChatThreads" />
             <End Role="ChatMessages" EntitySet="ChatMessages" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__assig__245D67DE" Association="Self.FK__ChatThrea__assig__245D67DE">
-            <End Role="Admin" EntitySet="Admin" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__creat__236943A5" Association="Self.FK__ChatThrea__creat__236943A5">
-            <End Role="Users" EntitySet="Users" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__shipm__22751F6C" Association="Self.FK__ChatThrea__shipm__22751F6C">
-            <End Role="Shipments" EntitySet="Shipments" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
           </AssociationSet>
           <AssociationSet Name="FK__Customer__user_i__45F365D3" Association="Self.FK__Customer__user_i__45F365D3">
             <End Role="Users" EntitySet="Users" />
@@ -1078,7 +986,6 @@
           <Property Name="street_no" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
           <Property Name="city" Type="String" MaxLength="100" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Users" Relationship="Self.FK__Admin__user_id__4222D4EF" FromRole="Admin" ToRole="Users" />
-          <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__assig__245D67DE" FromRole="Admin" ToRole="ChatThreads" />
           <NavigationProperty Name="UserSuspensions" Relationship="Self.FK__UserSuspe__admin__4F7CD00D" FromRole="Admin" ToRole="UserSuspensions" />
         </EntityType>
         <EntityType Name="Bookings">
@@ -1105,17 +1012,6 @@
           <NavigationProperty Name="Shipments" Relationship="Self.FK__Bookings__shipme__0C85DE4D" FromRole="Bookings" ToRole="Shipments" />
           <NavigationProperty Name="Trips" Relationship="Self.FK__Bookings__trip_i__0F624AF8" FromRole="Bookings" ToRole="Trips" />
         </EntityType>
-        <EntityType Name="ChatAttachments">
-          <Key>
-            <PropertyRef Name="attachment_id" />
-          </Key>
-          <Property Name="attachment_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="message_id" Type="Int32" Nullable="false" />
-          <Property Name="file_url" Type="String" MaxLength="255" FixedLength="false" Unicode="true" />
-          <Property Name="file_type" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
-          <Property Name="uploaded_at" Type="DateTime" Precision="3" />
-          <NavigationProperty Name="ChatMessages" Relationship="Self.FK__ChatAttac__messa__2DE6D218" FromRole="ChatAttachments" ToRole="ChatMessages" />
-        </EntityType>
         <EntityType Name="ChatMessages">
           <Key>
             <PropertyRef Name="message_id" />
@@ -1123,27 +1019,20 @@
           <Property Name="message_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
           <Property Name="thread_id" Type="Int32" Nullable="false" />
           <Property Name="sender_user_id" Type="Int32" Nullable="false" />
-          <Property Name="message_text" Type="String" MaxLength="Max" FixedLength="false" Unicode="true" />
+          <Property Name="message_text" Type="String" MaxLength="1000" FixedLength="false" Unicode="true" Nullable="false" />
           <Property Name="is_read" Type="Boolean" />
           <Property Name="sent_at" Type="DateTime" Precision="3" />
-          <NavigationProperty Name="ChatAttachments" Relationship="Self.FK__ChatAttac__messa__2DE6D218" FromRole="ChatMessages" ToRole="ChatAttachments" />
-          <NavigationProperty Name="Users" Relationship="Self.FK__ChatMessa__sende__2A164134" FromRole="ChatMessages" ToRole="Users" />
-          <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatMessa__threa__29221CFB" FromRole="ChatMessages" ToRole="ChatThreads" />
+          <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatMessa__threa__65370702" FromRole="ChatMessages" ToRole="ChatThreads" />
         </EntityType>
         <EntityType Name="ChatThreads">
           <Key>
             <PropertyRef Name="thread_id" />
           </Key>
           <Property Name="thread_id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
-          <Property Name="thread_type" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
-          <Property Name="shipment_id" Type="Int32" />
-          <Property Name="created_by_user_id" Type="Int32" Nullable="false" />
-          <Property Name="assigned_admin_id" Type="Int32" />
-          <Property Name="status" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
-          <NavigationProperty Name="Admin" Relationship="Self.FK__ChatThrea__assig__245D67DE" FromRole="ChatThreads" ToRole="Admin" />
-          <NavigationProperty Name="ChatMessages" Relationship="Self.FK__ChatMessa__threa__29221CFB" FromRole="ChatThreads" ToRole="ChatMessages" />
-          <NavigationProperty Name="Users" Relationship="Self.FK__ChatThrea__creat__236943A5" FromRole="ChatThreads" ToRole="Users" />
-          <NavigationProperty Name="Shipments" Relationship="Self.FK__ChatThrea__shipm__22751F6C" FromRole="ChatThreads" ToRole="Shipments" />
+          <Property Name="customer_user_id" Type="Int32" Nullable="false" />
+          <Property Name="driver_user_id" Type="Int32" Nullable="false" />
+          <Property Name="created_at" Type="DateTime" Precision="3" />
+          <NavigationProperty Name="ChatMessages" Relationship="Self.FK__ChatMessa__threa__65370702" FromRole="ChatThreads" ToRole="ChatMessages" />
         </EntityType>
         <EntityType Name="Checkpoints">
           <Key>
@@ -1157,6 +1046,7 @@
           <Property Name="route_id" Type="Int32" />
           <Property Name="sequence_no" Type="Int32" />
           <Property Name="reached" Type="Boolean" Nullable="false" />
+          <Property Name="estimated_arrival_datetime" Type="DateTime" Precision="3" />
           <NavigationProperty Name="TripCheckpoints" Relationship="Self.FK__TripCheck__check__1332DBDC" FromRole="Checkpoints" ToRole="TripCheckpoints" />
           <NavigationProperty Name="Driver" Relationship="Self.FK_Checkpoints_Driver" FromRole="Checkpoints" ToRole="Driver" />
           <NavigationProperty Name="Routes" Relationship="Self.FK_Checkpoints_Routes" FromRole="Checkpoints" ToRole="Routes" />
@@ -1374,7 +1264,6 @@
           <Property Name="shipment_radius" Type="Double" />
           <Property Name="shipment_type" Type="String" MaxLength="50" FixedLength="false" Unicode="true" />
           <NavigationProperty Name="Bookings" Relationship="Self.FK__Bookings__shipme__0C85DE4D" FromRole="Shipments" ToRole="Bookings" />
-          <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__shipm__22751F6C" FromRole="Shipments" ToRole="ChatThreads" />
           <NavigationProperty Name="Customer" Relationship="Self.FK__Shipments__custo__72C60C4A" FromRole="Shipments" ToRole="Customer" />
           <NavigationProperty Name="Packages" Relationship="Self.FK__Packages__shipme__7C4F7684" FromRole="Shipments" ToRole="Packages" />
           <NavigationProperty Name="RecipientDetails" Relationship="Self.FK__Recipient__shipm__75A278F5" FromRole="Shipments" ToRole="RecipientDetails" />
@@ -1450,8 +1339,6 @@
           <Property Name="last_login" Type="DateTime" Precision="3" />
           <Property Name="updated_at" Type="DateTime" Precision="3" />
           <NavigationProperty Name="Admin" Relationship="Self.FK__Admin__user_id__4222D4EF" FromRole="Users" ToRole="Admin" />
-          <NavigationProperty Name="ChatMessages" Relationship="Self.FK__ChatMessa__sende__2A164134" FromRole="Users" ToRole="ChatMessages" />
-          <NavigationProperty Name="ChatThreads" Relationship="Self.FK__ChatThrea__creat__236943A5" FromRole="Users" ToRole="ChatThreads" />
           <NavigationProperty Name="Customer" Relationship="Self.FK__Customer__user_i__45F365D3" FromRole="Users" ToRole="Customer" />
           <NavigationProperty Name="Driver" Relationship="Self.FK__Driver__user_id__4AB81AF0" FromRole="Users" ToRole="Driver" />
           <NavigationProperty Name="Notifications" Relationship="Self.FK__Notificat__user___32AB8735" FromRole="Users" ToRole="Notifications" />
@@ -1510,18 +1397,6 @@
             </Principal>
             <Dependent Role="Admin">
               <PropertyRef Name="user_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__assig__245D67DE">
-          <End Role="Admin" Type="Self.Admin" Multiplicity="0..1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Admin">
-              <PropertyRef Name="admin_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="assigned_admin_id" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -1585,31 +1460,7 @@
             </Dependent>
           </ReferentialConstraint>
         </Association>
-        <Association Name="FK__ChatAttac__messa__2DE6D218">
-          <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="1" />
-          <End Role="ChatAttachments" Type="Self.ChatAttachments" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="ChatMessages">
-              <PropertyRef Name="message_id" />
-            </Principal>
-            <Dependent Role="ChatAttachments">
-              <PropertyRef Name="message_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatMessa__sende__2A164134">
-          <End Role="Users" Type="Self.Users" Multiplicity="1" />
-          <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Users">
-              <PropertyRef Name="user_id" />
-            </Principal>
-            <Dependent Role="ChatMessages">
-              <PropertyRef Name="sender_user_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatMessa__threa__29221CFB">
+        <Association Name="FK__ChatMessa__threa__65370702">
           <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="1" />
           <End Role="ChatMessages" Type="Self.ChatMessages" Multiplicity="*" />
           <ReferentialConstraint>
@@ -1618,30 +1469,6 @@
             </Principal>
             <Dependent Role="ChatMessages">
               <PropertyRef Name="thread_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__creat__236943A5">
-          <End Role="Users" Type="Self.Users" Multiplicity="1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Users">
-              <PropertyRef Name="user_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="created_by_user_id" />
-            </Dependent>
-          </ReferentialConstraint>
-        </Association>
-        <Association Name="FK__ChatThrea__shipm__22751F6C">
-          <End Role="Shipments" Type="Self.Shipments" Multiplicity="0..1" />
-          <End Role="ChatThreads" Type="Self.ChatThreads" Multiplicity="*" />
-          <ReferentialConstraint>
-            <Principal Role="Shipments">
-              <PropertyRef Name="shipment_id" />
-            </Principal>
-            <Dependent Role="ChatThreads">
-              <PropertyRef Name="shipment_id" />
             </Dependent>
           </ReferentialConstraint>
         </Association>
@@ -2008,7 +1835,6 @@
         <EntityContainer Name="CargoConnectEntities4" annotation:LazyLoadingEnabled="true">
           <EntitySet Name="Admin" EntityType="Self.Admin" />
           <EntitySet Name="Bookings" EntityType="Self.Bookings" />
-          <EntitySet Name="ChatAttachments" EntityType="Self.ChatAttachments" />
           <EntitySet Name="ChatMessages" EntityType="Self.ChatMessages" />
           <EntitySet Name="ChatThreads" EntityType="Self.ChatThreads" />
           <EntitySet Name="Checkpoints" EntityType="Self.Checkpoints" />
@@ -2039,10 +1865,6 @@
             <End Role="Users" EntitySet="Users" />
             <End Role="Admin" EntitySet="Admin" />
           </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__assig__245D67DE" Association="Self.FK__ChatThrea__assig__245D67DE">
-            <End Role="Admin" EntitySet="Admin" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
-          </AssociationSet>
           <AssociationSet Name="FK__UserSuspe__admin__4F7CD00D" Association="Self.FK__UserSuspe__admin__4F7CD00D">
             <End Role="Admin" EntitySet="Admin" />
             <End Role="UserSuspensions" EntitySet="UserSuspensions" />
@@ -2063,25 +1885,9 @@
             <End Role="Trips" EntitySet="Trips" />
             <End Role="Bookings" EntitySet="Bookings" />
           </AssociationSet>
-          <AssociationSet Name="FK__ChatAttac__messa__2DE6D218" Association="Self.FK__ChatAttac__messa__2DE6D218">
-            <End Role="ChatMessages" EntitySet="ChatMessages" />
-            <End Role="ChatAttachments" EntitySet="ChatAttachments" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatMessa__sende__2A164134" Association="Self.FK__ChatMessa__sende__2A164134">
-            <End Role="Users" EntitySet="Users" />
-            <End Role="ChatMessages" EntitySet="ChatMessages" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatMessa__threa__29221CFB" Association="Self.FK__ChatMessa__threa__29221CFB">
+          <AssociationSet Name="FK__ChatMessa__threa__65370702" Association="Self.FK__ChatMessa__threa__65370702">
             <End Role="ChatThreads" EntitySet="ChatThreads" />
             <End Role="ChatMessages" EntitySet="ChatMessages" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__creat__236943A5" Association="Self.FK__ChatThrea__creat__236943A5">
-            <End Role="Users" EntitySet="Users" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
-          </AssociationSet>
-          <AssociationSet Name="FK__ChatThrea__shipm__22751F6C" Association="Self.FK__ChatThrea__shipm__22751F6C">
-            <End Role="Shipments" EntitySet="Shipments" />
-            <End Role="ChatThreads" EntitySet="ChatThreads" />
           </AssociationSet>
           <AssociationSet Name="FK__TripCheck__check__1332DBDC" Association="Self.FK__TripCheck__check__1332DBDC">
             <End Role="Checkpoints" EntitySet="Checkpoints" />
@@ -2245,17 +2051,6 @@
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
-          <EntitySetMapping Name="ChatAttachments">
-            <EntityTypeMapping TypeName="CargoConnectModel.ChatAttachments">
-              <MappingFragment StoreEntitySet="ChatAttachments">
-                <ScalarProperty Name="attachment_id" ColumnName="attachment_id" />
-                <ScalarProperty Name="message_id" ColumnName="message_id" />
-                <ScalarProperty Name="file_url" ColumnName="file_url" />
-                <ScalarProperty Name="file_type" ColumnName="file_type" />
-                <ScalarProperty Name="uploaded_at" ColumnName="uploaded_at" />
-              </MappingFragment>
-            </EntityTypeMapping>
-          </EntitySetMapping>
           <EntitySetMapping Name="ChatMessages">
             <EntityTypeMapping TypeName="CargoConnectModel.ChatMessages">
               <MappingFragment StoreEntitySet="ChatMessages">
@@ -2272,11 +2067,9 @@
             <EntityTypeMapping TypeName="CargoConnectModel.ChatThreads">
               <MappingFragment StoreEntitySet="ChatThreads">
                 <ScalarProperty Name="thread_id" ColumnName="thread_id" />
-                <ScalarProperty Name="thread_type" ColumnName="thread_type" />
-                <ScalarProperty Name="shipment_id" ColumnName="shipment_id" />
-                <ScalarProperty Name="created_by_user_id" ColumnName="created_by_user_id" />
-                <ScalarProperty Name="assigned_admin_id" ColumnName="assigned_admin_id" />
-                <ScalarProperty Name="status" ColumnName="status" />
+                <ScalarProperty Name="customer_user_id" ColumnName="customer_user_id" />
+                <ScalarProperty Name="driver_user_id" ColumnName="driver_user_id" />
+                <ScalarProperty Name="created_at" ColumnName="created_at" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>
@@ -2291,6 +2084,7 @@
                 <ScalarProperty Name="route_id" ColumnName="route_id" />
                 <ScalarProperty Name="sequence_no" ColumnName="sequence_no" />
                 <ScalarProperty Name="reached" ColumnName="reached" />
+                <ScalarProperty Name="estimated_arrival_datetime" ColumnName="estimated_arrival_datetime" />
               </MappingFragment>
             </EntityTypeMapping>
           </EntitySetMapping>

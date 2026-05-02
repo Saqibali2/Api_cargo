@@ -107,42 +107,42 @@ namespace Api_cargo.Controllers
         }
 
 
-        [HttpGet]
-        [Route("api/customers/{customerId}/bookings")]
-        public IHttpActionResult GetCustomerBookings(int customerId)
-        {
-            var bookings = (
-     from b in db.Bookings
+ //       [HttpGet]
+ //       [Route("api/customers/{customerId}/bookings")]
+ //       public IHttpActionResult GetCustomerBookings(int customerId)
+ //       {
+ //           var bookings = (
+ //    from b in db.Bookings
 
-     join r in db.Routes
-         on b.route_id equals r.route_id into routeGroup
-     from r in routeGroup.DefaultIfEmpty()
+ //    join r in db.Routes
+ //        on b.route_id equals r.route_id into routeGroup
+ //    from r in routeGroup.DefaultIfEmpty()
 
-     let fromCp = db.Checkpoints
-         .Where(c => r != null && c.route_id == r.route_id)
-         .OrderBy(c => c.sequence_no)
-         .FirstOrDefault()
+ //    let fromCp = db.Checkpoints
+ //        .Where(c => r != null && c.route_id == r.route_id)
+ //        .OrderBy(c => c.sequence_no)
+ //        .FirstOrDefault()
 
-     let toCp = db.Checkpoints
-         .Where(c => r != null && c.route_id == r.route_id)
-         .OrderByDescending(c => c.sequence_no)
-         .FirstOrDefault()
+ //    let toCp = db.Checkpoints
+ //        .Where(c => r != null && c.route_id == r.route_id)
+ //        .OrderByDescending(c => c.sequence_no)
+ //        .FirstOrDefault()
 
-     where b.customer_id == customerId
+ //    where b.customer_id == customerId
 
-     select new
-     {
-         id = b.booking_id,
-         status = b.status,
-         amount = b.amount,
-         bookingType = b.booking_type,
-         fromCheckpoint = fromCp != null ? fromCp.name : null,
-         toCheckpoint = toCp != null ? toCp.name : null,
-     }
- ).ToList();
+ //    select new
+ //    {
+ //        id = b.booking_id,
+ //        status = b.status,
+ //        amount = b.amount,
+ //        bookingType = b.booking_type,
+ //        fromCheckpoint = fromCp != null ? fromCp.name : null,
+ //        toCheckpoint = toCp != null ? toCp.name : null,
+ //    }
+ //).ToList();
 
-            return Ok(bookings);
-        }
+ //           return Ok(bookings);
+ //       }
         [HttpGet]
         [Route("api/customers/{customerId}/pending-shipments-count")]
         public IHttpActionResult GetPendingShipmentsCount(int customerId)
@@ -484,6 +484,11 @@ namespace Api_cargo.Controllers
 
                 booking.status = "In-Transit";
                 shipment.status = "In-Transit";
+                booking.pickup_date = DateTime.Now;
+
+                var customer = db.Customer.FirstOrDefault(c => c.customer_id == booking.customer_id);
+                if (customer != null)
+                    NotificationHelper.Send(db, customer.user_id, "Your shipment has been picked up by the driver. View details in the shipments tab.");
 
                 db.SaveChanges();
 
@@ -515,6 +520,11 @@ namespace Api_cargo.Controllers
                 booking.status = "Completed";
                 booking.actual_delivery_datetime = DateTime.Now;
                 shipment.status = "Delivered";
+
+                var customer = db.Customer.FirstOrDefault(c => c.customer_id == booking.customer_id);
+                if (customer != null)
+                    NotificationHelper.Send(db, customer.user_id, "Your shipment has successfully been delivered. View details in the shipments tab.");
+
 
                 db.SaveChanges();
 
@@ -554,6 +564,9 @@ namespace Api_cargo.Controllers
                 {
                     trip.start_time = DateTime.Now;
                     trip.status = "In-Transit";
+                    var driver = db.Driver.FirstOrDefault(d => d.driver_id == driverId);
+                    if (driver != null)
+                        NotificationHelper.Send(db, driver.user_id, "Your trip has started. Safe travels!");
                 }
 
                 // Set all Assigned bookings + shipments on this route to In-Transit
@@ -589,32 +602,53 @@ namespace Api_cargo.Controllers
                 return InternalServerError(ex);
             }
         }
-        [HttpPut]
-        [Route("api/bookings/{id}/complete")]
-        public IHttpActionResult CompleteBooking(int id)
-        {
-            var booking = db.Bookings.Find(id);
-
-            if (booking == null)
-                return NotFound();
-
-            booking.status = "Completed";
-            booking.updated_at = DateTime.Now;
-
-            db.SaveChanges();
-
-            return Ok("Delivery completed.");
-        }
         [HttpPost]
-            [Route("api/trips/start")]
-            public IHttpActionResult StartTrip(Trips trip)
+        [Route("api/bookings/{bookingId}/cancel")]
+        public IHttpActionResult CancelBooking(int bookingId)
+        {
+            try
             {
-                trip.start_time = DateTime.Now;
-                trip.status = "In Transit";
-                db.Trips.Add(trip);
+                var booking = db.Bookings.FirstOrDefault(b => b.booking_id == bookingId);
+                if (booking == null)
+                    return BadRequest("Booking not found.");
+
+                if (booking.status != "Assigned")
+                    return BadRequest("Only assigned bookings can be canceled.");
+
+                var shipment = db.Shipments.FirstOrDefault(s => s.shipment_id == booking.shipment_id);
+                if (shipment == null)
+                    return BadRequest("Shipment not found.");
+
+                booking.status = "Canceled";
+                shipment.status = "Pending";
+                booking.cancel_reason = "Canceled by customer";
+
+                var pickup = shipment.pickup_address ?? "Unknown pickup";
+                var delivery = shipment.delivery_address ?? "Unknown delivery";
+
+                var route = db.Routes.FirstOrDefault(r => r.route_id == booking.route_id);
+                if (route != null)
+                {
+                    var driver = db.Driver.FirstOrDefault(d => d.driver_id == route.driver_id);
+                    if (driver != null)
+                        NotificationHelper.Send(
+                            db,
+                            driver.user_id,
+                            $"Booking #{bookingId} ({pickup} → {delivery}) has been canceled by the customer."
+                        );
+                }
+
+
                 db.SaveChanges();
-                return Ok(trip);
+                return Ok(new { message = "Booking canceled successfully.", bookingId = bookingId });
             }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+       
+       
 
         [HttpGet]
         [Route("api/trips/{id}/track")]
@@ -666,59 +700,117 @@ namespace Api_cargo.Controllers
                 ActiveDelays = delays
             });
         }
-
-        [HttpGet]
-        [Route("api/trips/{id}/bookings")]
-        public IHttpActionResult GetBookingsByTrip(int id)
+        [HttpPost]
+        [Route("api/driver/add-delay")]
+        public IHttpActionResult AddDelay(int checkpointId, double hours, string reason)
         {
-            var bookings = db.Bookings
-                .Where(b => b.trip_id == id)
-                .Select(b => new
-                {
-                    booking_id = b.booking_id,
-                    shipment_id = b.shipment_id,
-                    status = b.status,
-                    amount = b.amount,
-                    pickup_date = b.pickup_date
-                })
-                .ToList();
-
-            return Ok(bookings);
-        }
-        [HttpGet]
-        [Route("api/routes/{routeId}/checkpoints")]
-        public IHttpActionResult GetRouteCheckpoints(int routeId)
-        {
-            var checkpoints = db.Checkpoints
-                .Where(c => c.route_id == routeId)
-                .OrderBy(c => c.sequence_no)
-                .Select(c => new
-                {
-                    c.checkpoint_id,
-                    c.sequence_no,
-                    c.name,
-                    latitude = c.latitude,
-                    longitude = c.longitude
-                })
-                .ToList();
-
-            return Ok(checkpoints);
-        }
-        [HttpGet]
-            [Route("api/trips")]
-            public IHttpActionResult GetAllTrips()
+            try
             {
-                var trips = db.Trips.Select(t => new
-                {
-                    t.trip_id,
-                    t.route_id,
-                    t.driver_id,
-                    t.start_time,
-                    t.end_time,
-                }).ToList();
+                var targetCheckpoint = db.Checkpoints.FirstOrDefault(c => c.checkpoint_id == checkpointId);
 
-                return Ok(trips);
+                if (targetCheckpoint == null)
+                    return BadRequest("Checkpoint not found.");
+
+                int routeId = targetCheckpoint.route_id ?? 0;
+                int currentSequence = targetCheckpoint.sequence_no ?? 0;
+
+                var futureCheckpoints = db.Checkpoints
+                    .Where(c => c.route_id == routeId && c.sequence_no >= currentSequence)
+                    .ToList();
+
+                foreach (var cp in futureCheckpoints)
+                {
+                    if (cp.estimated_arrival_datetime.HasValue)
+                    {
+                        cp.estimated_arrival_datetime = cp.estimated_arrival_datetime.Value.AddHours(hours);
+                    }
+                }
+
+                var maxSequence = db.Checkpoints
+                    .Where(c => c.route_id == routeId)
+                    .Max(c => c.sequence_no);
+
+                if (futureCheckpoints.Any(c => c.sequence_no == maxSequence))
+                {
+                    var schedule = db.RouteSchedule.FirstOrDefault(s => s.route_id == routeId);
+                    if (schedule != null && schedule.arrivalDate.HasValue)
+                    {
+                        schedule.arrivalDate = schedule.arrivalDate.Value.AddHours(hours);
+                    }
+                }
+
+                db.SaveChanges();
+
+                var bookings = db.Bookings
+                    .Where(b => b.route_id == routeId &&
+                        (b.status == "Assigned" || b.status == "In-Transit"))
+                .ToList();
+
+                String time = "";
+                var days = 0;
+                while (hours >= 24)
+                {
+                    days++;
+                    hours -= 24;
+                }
+
+                if (days > 0)
+                    time = $"{days} day(s) and {hours} hour(s). ";
+                else
+                    time = $"{hours} hour(s). ";
+
+                foreach (Bookings b in bookings)
+                {
+                    var customer = db.Customer.FirstOrDefault(c => c.customer_id == b.customer_id);
+                    if (customer != null)
+                        NotificationHelper.Send(db, customer.user_id, $"A delay of {time} has been added to your route due to: {reason}. ");
+                }
+                var route = db.Routes.FirstOrDefault(r => r.route_id == routeId);
+                if (route == null)
+                    return BadRequest("Route not found.");
+
+                var driver = db.Driver.FirstOrDefault(d => d.driver_id == route.driver_id);
+                if (driver != null)
+                    NotificationHelper.Send(db, driver.user_id, $"A delay of {time} has been added to your route due to: {reason}. Updated estimated arrival times have been calculated.");
+
+                return Ok(new
+                {
+                    message = "Delay applied successfully",
+                    affectedCheckpoints = futureCheckpoints.Count
+                });
             }
+            catch (Exception ex)
+            {
+                return InternalServerError();
+            }
+        }
+        [HttpGet]
+        [Route("api/checkpoints/estimated-arrival/{checkpointId}")]
+        public IHttpActionResult GetEstimatedArrivalDate(int checkpointId)
+        {
+            var estimatedTime = db.Checkpoints
+                .Where(c => c.checkpoint_id == checkpointId)
+                .Select(c => c.estimated_arrival_datetime)
+                .FirstOrDefault();
+
+            if (estimatedTime == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(estimatedTime);
+        }
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double R = 6371000;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLon = (lon2 - lon1) * Math.PI / 180;
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                    Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
+                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        }
+
 
         private IHttpActionResult GetBookingsByStatus(int driverId, string status)
         {

@@ -27,7 +27,6 @@ namespace Api_cargo.Models
     
         public DbSet<Admin> Admin { get; set; }
         public DbSet<Bookings> Bookings { get; set; }
-        public DbSet<ChatAttachments> ChatAttachments { get; set; }
         public DbSet<ChatMessages> ChatMessages { get; set; }
         public DbSet<ChatThreads> ChatThreads { get; set; }
         public DbSet<Checkpoints> Checkpoints { get; set; }

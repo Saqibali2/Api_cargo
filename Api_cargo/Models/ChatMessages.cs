@@ -14,11 +14,6 @@ namespace Api_cargo.Models
     
     public partial class ChatMessages
     {
-        public ChatMessages()
-        {
-            this.ChatAttachments = new HashSet<ChatAttachments>();
-        }
-    
         public int message_id { get; set; }
         public int thread_id { get; set; }
         public int sender_user_id { get; set; }
@@ -26,8 +21,6 @@ namespace Api_cargo.Models
         public Nullable<bool> is_read { get; set; }
         public Nullable<System.DateTime> sent_at { get; set; }
     
-        public virtual ICollection<ChatAttachments> ChatAttachments { get; set; }
-        public virtual Users Users { get; set; }
         public virtual ChatThreads ChatThreads { get; set; }
     }
 }

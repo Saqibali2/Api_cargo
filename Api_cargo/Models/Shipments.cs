@@ -17,7 +17,6 @@ namespace Api_cargo.Models
         public Shipments()
         {
             this.Bookings = new HashSet<Bookings>();
-            this.ChatThreads = new HashSet<ChatThreads>();
             this.Packages = new HashSet<Packages>();
             this.RecipientDetails = new HashSet<RecipientDetails>();
             this.Requests = new HashSet<Requests>();
@@ -42,7 +41,6 @@ namespace Api_cargo.Models
         public string shipment_type { get; set; }
     
         public virtual ICollection<Bookings> Bookings { get; set; }
-        public virtual ICollection<ChatThreads> ChatThreads { get; set; }
         public virtual Customer Customer { get; set; }
         public virtual ICollection<Packages> Packages { get; set; }
         public virtual ICollection<RecipientDetails> RecipientDetails { get; set; }

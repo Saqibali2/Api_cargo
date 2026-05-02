@@ -27,6 +27,7 @@ namespace Api_cargo.Models
         public Nullable<int> route_id { get; set; }
         public Nullable<int> sequence_no { get; set; }
         public bool reached { get; set; }
+        public Nullable<System.DateTime> estimated_arrival_datetime { get; set; }
     
         public virtual ICollection<TripCheckpoints> TripCheckpoints { get; set; }
         public virtual Driver Driver { get; set; }

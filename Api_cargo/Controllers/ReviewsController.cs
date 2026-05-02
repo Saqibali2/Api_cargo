@@ -13,77 +13,189 @@ namespace Api_cargo.Controllers
         CargoConnectEntities4 db = new CargoConnectEntities4();
 
         [HttpGet]
-        [Route("api/reviews/status")]
-        public IHttpActionResult GetReviewsStatus()
+        [Route("api/reviews/{userId}")]
+        public IHttpActionResult GetAllReviews(int userId)
         {
-            return Ok("SUCCESS: Reviews connection successful.");
-        }
-        [HttpGet]
-        [Route("api/reviews/average")]
-        public IHttpActionResult GetAverageRating(int userId)
-        {
-
-            var reviews = db.Reviews
-                .Where(r => r.target_user_id == userId);
-
-            if (!reviews.Any())
+            try
             {
+                var reviews = db.Reviews
+                    .Where(r => r.target_user_id == userId)
+                    .OrderByDescending(r => r.created_at)
+                    .Select(r => new
+                    {
+                        r.review_id,
+                        r.trip_id,
+                        r.reviewer_user_id,
+                        r.target_user_id,
+                        r.rating,
+                        r.comments,
+                        r.created_at,
+                        reviewer_name = db.Driver
+                            .Where(d => d.user_id == r.reviewer_user_id)
+                            .Select(d => d.first_name + " " + d.last_name)
+                            .FirstOrDefault() ??
+                                db.Customer
+                            .Where(c => c.user_id == r.reviewer_user_id)
+                            .Select(c => c.first_name + " " + c.last_name)
+                            .FirstOrDefault() ?? "Unknown"
+                    })
+                    .ToList();
+
+                return Ok(reviews);
+            }
+            catch (Exception ex)
+            {
+                //Logger.Error(ex, $"GetAllReviews failed for userId={userId}");
+                return InternalServerError();
+            }
+        }
+
+        [HttpPost]
+        [Route("api/reviews/send")]
+        public IHttpActionResult SendReview(int fromUserId, int toUserId, int tripId, int rating, string comments)
+        {
+            try
+            {
+                if (rating < 1 || rating > 5)
+                    return BadRequest("Rating must be between 1 and 5.");
+
+                var tripExists = db.Trips.Any(t => t.trip_id == tripId);
+                if (!tripExists)
+                    return BadRequest("Trip not found.");
+
+                var alreadyReviewed = db.Reviews.Any(r =>
+                    r.reviewer_user_id == fromUserId &&
+                    r.target_user_id == toUserId &&
+                    r.trip_id == tripId);
+
+                if (alreadyReviewed)
+                    return BadRequest("You have already reviewed this person for this trip.");
+
+                var review = new Reviews
+                {
+                    reviewer_user_id = fromUserId,
+                    target_user_id = toUserId,
+                    trip_id = tripId,
+                    rating = rating,
+                    comments = comments,
+                    created_at = DateTime.Now
+                };
+
+                db.Reviews.Add(review);
+                db.SaveChanges();
+
+                NotificationHelper.Send(db, toUserId, $"You received a {rating}★ review.");
+
                 return Ok(new
                 {
-                    user_id = userId,
-                    average_rating = 0,
-                    total_reviews = 0
+                    message = "Review submitted successfully.",
+                    review_id = review.review_id
                 });
             }
-
-            var result = new
+            catch (Exception ex)
             {
-                user_id = userId,
-                average_rating = Math.Round(reviews.Average(r => (double?)r.rating) ?? 0, 1),
-                total_reviews = reviews.Count()
-            };
+                //Logger.Error(ex, $"SendReview failed: from={fromUserId}, to={toUserId}, trip={tripId}");
+                return InternalServerError();
+            }
+        }
 
-            return Ok(result);
+        [HttpGet]
+        [Route("api/reviews/rating/{userId}")]
+        public IHttpActionResult GetAverageRating(int userId)
+        {
+            try
+            {
+                var reviews = db.Reviews
+                    .Where(r => r.target_user_id == userId)
+                    .ToList();
+
+                if (!reviews.Any())
+                    return Ok(new { averageRating = 0.0, totalReviews = 0 });
+
+                double average = reviews.Average(r => (double)(r.rating ?? 0));
+
+                return Ok(new
+                {
+                    averageRating = Math.Round(average, 1),
+                    totalReviews = reviews.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                //Logger.Error(ex, $"GetAverageRating failed for userId={userId}");
+                return InternalServerError();
+            }
         }
         [HttpGet]
-        [Route("api/reviews/user")]
-        public IHttpActionResult GetUserReviews(int userId)
+        [Route("api/reviews/booking-info/{bookingId}")]
+        public IHttpActionResult GetReviewInfoForBooking(int bookingId)
         {
-            var query = db.Reviews
-                .Where(r => r.reviewer_user_id == userId || r.target_user_id == userId);
-
-            var reviews = (from r in query
-                           join ru in db.Users on r.reviewer_user_id equals ru.user_id
-                           join tu in db.Users on r.target_user_id equals tu.user_id
-                           select new
-                           {
-                               id = r.review_id,
-                               trip_id = r.trip_id,
-                               rating = r.rating,
-                               comment = r.comments,
-                               created_at = r.created_at,
-
-                               type = r.target_user_id == userId ? "received" : "given",
-
-                               reviewer_name = ru.email,
-                               reviewer_role = ru.role_id == 3 ? "driver" :
-                                               ru.role_id == 2 ? "customer" : "admin",
-
-                               target_name = tu.email,
-                               target_role = tu.role_id == 3 ? "driver" :
-                                             tu.role_id == 2 ? "customer" : "admin"
-                           })
-                           .OrderByDescending(r => r.created_at)
-                           .ToList();
-
-            var avg = Math.Round(query.Average(r => (double?)r.rating) ?? 0, 1);
-
-            return Ok(new
+            try
             {
-                average_rating = avg,
-                total_reviews = query.Count(),
-                reviews = reviews
-            });
+                var booking = db.Bookings.FirstOrDefault(b => b.booking_id == bookingId);
+                if (booking == null)
+                    return BadRequest("Booking not found.");
+
+                var customer = db.Customer.FirstOrDefault(c => c.customer_id == booking.customer_id);
+                if (customer == null)
+                    return BadRequest("Customer not found.");
+
+                var alreadyReviewed = db.Reviews.Any(r =>
+                    r.trip_id == booking.trip_id &&
+                    r.target_user_id == customer.user_id);
+
+                return Ok(new
+                {
+                    booking_id = bookingId,
+                    trip_id = booking.trip_id,
+                    target_user_id = customer.user_id,
+                    target_name = customer.first_name + " " + customer.last_name,
+                    already_reviewed = alreadyReviewed
+                });
+            }
+            catch (Exception ex)
+            {
+                //Logger.Error(ex, $"GetReviewInfoForBooking failed: bookingId={bookingId}");
+                return InternalServerError();
+            }
+        }
+        [HttpGet]
+        [Route("api/reviews/can-review")]
+        public IHttpActionResult CanReview(int reviewerUserId, int bookingId)
+        {
+            try
+            {
+                var booking = db.Bookings.FirstOrDefault(b => b.booking_id == bookingId);
+                if (booking == null)
+                    return BadRequest("Booking not found.");
+
+                // Get driver's user_id through route
+                var route = db.Routes.FirstOrDefault(r => r.route_id == booking.route_id);
+                if (route == null)
+                    return BadRequest("Route not found.");
+
+                var driver = db.Driver.FirstOrDefault(d => d.driver_id == route.driver_id);
+                if (driver == null)
+                    return BadRequest("Driver not found.");
+
+                var alreadyReviewed = db.Reviews.Any(r =>
+                    r.reviewer_user_id == reviewerUserId &&
+                    r.target_user_id == driver.user_id &&
+                    r.trip_id == booking.trip_id);
+
+                return Ok(new
+                {
+                    can_review = !alreadyReviewed,
+                    target_user_id = driver.user_id,
+                    target_name = driver.first_name + " " + driver.last_name,
+                    trip_id = booking.trip_id
+                });
+            }
+            catch (Exception ex)
+            {
+                //Logger.Error(ex, $"CanReview failed: reviewerUserId={reviewerUserId}, bookingId={bookingId}");
+                return InternalServerError();
+            }
         }
 
     }

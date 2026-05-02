@@ -16,7 +16,6 @@ namespace Api_cargo.Models
     {
         public Admin()
         {
-            this.ChatThreads = new HashSet<ChatThreads>();
             this.UserSuspensions = new HashSet<UserSuspensions>();
         }
     
@@ -30,7 +29,6 @@ namespace Api_cargo.Models
         public string city { get; set; }
     
         public virtual Users Users { get; set; }
-        public virtual ICollection<ChatThreads> ChatThreads { get; set; }
         public virtual ICollection<UserSuspensions> UserSuspensions { get; set; }
     }
 }
