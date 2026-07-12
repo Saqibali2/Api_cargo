@@ -93,7 +93,7 @@ Api_cargo/
   Models/               ← Entity/DTO classes matching the ERD
   Properties/           ← Assembly info
   Global.asax / Global.asax.cs
-  Web.config            ← ⚠️ Contains DB connection strings — never commit real secrets here
+  Web.config            
   Web.Debug.config
   Web.Release.config
   packages.config        ← NuGet dependency list
